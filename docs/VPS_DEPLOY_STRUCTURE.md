@@ -4,6 +4,16 @@ This doc describes where code and config live on the server for **staging** and 
 
 ---
 
+## Dashboard apps in this repo
+
+- **DASHBOARD_FASTPAY** — **Common reference (core).** Canonical FastPay dashboard; primary build for staging/production (deploy-all.sh); nginx serves its `dist/`.
+- **DASHBOARD_REDPAY** — RedPay variant; built and deployed separately (e.g. RedPay domain).
+- **DASHBOARD** — Legacy/fallback; used when DASHBOARD_FASTPAY is missing. Not the single source of code for FASTPAY or REDPAY. Some docs use "DASHBOARD" as a generic name; the actual core is DASHBOARD_FASTPAY.
+
+For dashboard development, edit **DASHBOARD_FASTPAY** (core) or **DASHBOARD_REDPAY** (RedPay). See sections below for deploy layout and URLs.
+
+---
+
 ## 1. Target layout
 
 ### Production (VPS)
@@ -45,17 +55,19 @@ Same three directories; env files use `.env.staging` (and optionally `.env.redpa
 
 ## 2. URLs after deploy – which URL shows what
 
-After deploy, use these URLs to reach each part of the app. Adjust if your nginx `server_name` or domains differ.
+**All URLs below point to this VPS** (domain `fastpaygaming.com` and its subdomains). Staging and production live on the same host; nginx and DNS distinguish by subdomain. Adjust only if you use a different domain.
+
+After deploy, use these URLs to reach each part of the app:
 
 ### Staging
 
 | URL | What it serves |
 | ----- | ----------------- |
 | `https://staging.fastpaygaming.com/` | FastPay dashboard (DASHBOARD_FASTPAY build) |
+| `https://redpay-staging.fastpaygaming.com/` | RedPay dashboard (DASHBOARD_REDPAY build; host nginx serves from `/desktop/fastpay/DASHBOARD_REDPAY/dist`) |
 | `https://axisurgent.fastpaygaming.com/` | AXISURGENT app (redirects to `/axisurgent`) |
 | `https://api-staging.fastpaygaming.com/api/` | Backend API |
 | `https://admin-staging.fastpaygaming.com/admin/` | Django admin |
-| (If RedPay has a dedicated staging URL, add it here) | RedPay dashboard |
 
 ### Production
 
@@ -64,15 +76,16 @@ After deploy, use these URLs to reach each part of the app. Adjust if your nginx
 | `https://fastpaygaming.com/` (and `www`) | FastPay dashboard (DASHBOARD_FASTPAY build) |
 | `https://api.fastpaygaming.com/api/` | Backend API |
 | `https://api.fastpaygaming.com/admin/` (or admin subdomain) | Django admin |
-| `https://owner.fastpaygaming.com/` | Owner app (if deployed) |
 | `https://redpay.fastpaygaming.com/` (or your RedPay domain) | RedPay dashboard (if deployed) |
+
+**Note:** `https://owner.fastpaygaming.com/` is not on this VPS; it is a separate deployment.
 
 ---
 
 ## 3. Nginx – where the built dashboard is served from
 
 - **Production:** Main FastPay dashboard is served from `root /var/www/fastpay/DASHBOARD_FASTPAY/dist`. If RedPay has its own vhost, use `root /var/www/fastpay/DASHBOARD_REDPAY/dist` for that server block.
-- **Staging:** Dashboard is served by the staging nginx container, which mounts the build from the host. The container’s docroot is fed from **`/desktop/fastpay/DASHBOARD_FASTPAY/dist`** (set via `STAGING_DASHBOARD_DIST_PATH` in BACKEND env). Host nginx proxies `staging.fastpaygaming.com` to that container (e.g. port 8888).
+- **Staging:** FastPay dashboard is served by the staging nginx container, which mounts **`/desktop/fastpay/DASHBOARD_FASTPAY/dist`** (set via `STAGING_DASHBOARD_DIST_PATH` in BACKEND env). Host nginx proxies `staging.fastpaygaming.com` to that container (port 8888). RedPay staging is served directly by host nginx from **`/desktop/fastpay/DASHBOARD_REDPAY/dist`** at `redpay-staging.fastpaygaming.com` (see `BACKEND/nginx/conf.d/staging-05-redpay.conf`).
 
 See **BACKEND/nginx/STAGING_NGINX.md** and **BACKEND/nginx/** configs for full nginx setup. For Gmail/Drive OAuth, see **BACKEND/docs/GMAIL_DRIVE_DEPLOY.md**.
 

@@ -41,12 +41,13 @@ class Command(BaseCommand):
         user, created = DashUser.objects.update_or_create(
             email=email,
             defaults={
-                'password': password,
                 'access_level': 0,  # Full Admin - can access all dashboards
                 'status': 'active',
                 'full_name': full_name
             }
         )
+        user.set_password(password)
+        user.save(update_fields=['password'])
 
         if created:
             self.stdout.write(self.style.SUCCESS(f'✅ Created new super admin user: {email}'))

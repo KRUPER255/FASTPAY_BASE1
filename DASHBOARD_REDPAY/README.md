@@ -227,8 +227,9 @@ See [Dependencies](#dependencies) section for complete list.
 
 ## Project Structure
 
+Paths below are relative to this project (DASHBOARD_REDPAY).
+
 ```
-DASHBOARD/
 ├── src/
 │   ├── App.tsx                 # Main app component with routing
 │   ├── main.tsx                # Application entry point

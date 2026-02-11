@@ -47,6 +47,7 @@ vi.mock('@/pages/dashboard/layouts/registry', () => {
 
 vi.mock('@/lib/dashboard-sections', () => ({
   getFirstSection: () => ({ key: 'device' }),
+  getVisibleSections: () => [{ key: 'device' }, { key: 'bankcard' }, { key: 'users' }, { key: 'utility' }, { key: 'api' }, { key: 'profile' }],
   DASHBOARD_SECTION_STORAGE_KEY: 'test-section',
   showDeviceSidebarForSection: () => false,
 }))
@@ -57,6 +58,7 @@ vi.mock('@/pages/dashboard/views/BankcardSectionView', () => ({ BankcardSectionV
 vi.mock('@/pages/dashboard/views/UtilitySectionView', () => ({ UtilitySectionView: () => <div>UtilitySectionView</div> }))
 vi.mock('@/pages/dashboard/views/ApiSectionView', () => ({ ApiSectionView: () => <div>ApiSectionView</div> }))
 vi.mock('@/pages/dashboard/views/ProfileSectionView', () => ({ ProfileSectionView: () => <div>ProfileSectionView</div> }))
+vi.mock('@/pages/dashboard/views/UserManagementSectionView', () => ({ UserManagementSectionView: () => <div>UserManagementSectionView</div> }))
 
 describe('DashboardShell OAuth return', () => {
   beforeEach(() => {

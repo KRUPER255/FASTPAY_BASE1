@@ -11,6 +11,7 @@ import {
 import { SectionNav } from '@/component/SectionNav'
 import {
   getFirstSection,
+  getVisibleSections,
   DASHBOARD_SECTION_STORAGE_KEY,
   showDeviceSidebarForSection,
 } from '@/lib/dashboard-sections'
@@ -20,25 +21,18 @@ import { BankcardSectionView } from '@/pages/dashboard/views/BankcardSectionView
 import { UtilitySectionView } from '@/pages/dashboard/views/UtilitySectionView'
 import { ApiSectionView } from '@/pages/dashboard/views/ApiSectionView'
 import { ProfileSectionView } from '@/pages/dashboard/views/ProfileSectionView'
+import { UserManagementSectionView } from '@/pages/dashboard/views/UserManagementSectionView'
 
-const VALID_SECTIONS: DashboardSectionType[] = [
-  'device',
-  'bankcard',
-  'utility',
-  'api',
-  'profile',
-]
-
-function readStoredSection(): DashboardSectionType {
+function readStoredSection(accessLevel: number): DashboardSectionType {
+  const validKeys = getVisibleSections(accessLevel).map(s => s.key)
   try {
-    const stored = localStorage.getItem(DASHBOARD_SECTION_STORAGE_KEY)
-    if (stored && VALID_SECTIONS.includes(stored as DashboardSectionType)) {
-      return stored as DashboardSectionType
-    }
+    const stored = localStorage.getItem(DASHBOARD_SECTION_STORAGE_KEY) as DashboardSectionType | null
+    if (stored && validKeys.includes(stored)) return stored
   } catch {
     // ignore
   }
-  return getFirstSection().key
+  const first = getVisibleSections(accessLevel)[0]
+  return first?.key ?? getFirstSection().key
 }
 
 interface DashboardShellProps {
@@ -56,8 +50,8 @@ export function DashboardShell({
   const userEmail = userEmailProp ?? session?.email ?? null
   const userAccessLevel = userAccessLevelProp ?? getUserAccess()
 
-  const [activeSection, setActiveSection] = useState<DashboardSectionType>(
-    readStoredSection
+  const [activeSection, setActiveSection] = useState<DashboardSectionType>(() =>
+    readStoredSection(userAccessLevelProp ?? getUserAccess())
   )
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null)
   const [layoutThemeId, setLayoutThemeId] = useState(getDefaultDashboardLayoutThemeId)
@@ -178,6 +172,10 @@ export function DashboardShell({
               onDeviceSelect={handleDeviceSelect}
             />
           )
+        case 'users':
+          return (
+            <UserManagementSectionView sessionEmail={userEmail} />
+          )
         case 'utility':
           return (
             <UtilitySectionView
@@ -232,6 +230,7 @@ export function DashboardShell({
         <SectionNav
           activeSection={activeSection}
           onSectionChange={handleSectionChange}
+          userAccessLevel={userAccessLevel}
         />
       }
       showDeviceSidebarOverride={showDeviceSidebarForSection(activeSection)}

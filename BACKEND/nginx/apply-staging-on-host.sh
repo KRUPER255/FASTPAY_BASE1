@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Run this script ON THE STAGING SERVER (where host nginx runs).
-# Copies the 5 staging configs (including axisurgent) to /etc/nginx/conf.d/, removes old staging
+# Copies the 6 staging configs (dashboard, api, admin, axisurgent, redpay) to /etc/nginx/conf.d/, removes old staging
 # configs, then tests and reloads nginx.
 #
 # Usage (run on STAGING SERVER where nginx is installed):
@@ -96,6 +96,7 @@ cp -v "$CONF_SOURCE/staging-01-dashboard.conf" "$CONF_DEST/"
 cp -v "$CONF_SOURCE/staging-02-api.conf" "$CONF_DEST/"
 cp -v "$CONF_SOURCE/staging-03-admin.conf" "$CONF_DEST/"
 cp -v "$CONF_SOURCE/staging-04-axisurgent.conf" "$CONF_DEST/"
+cp -v "$CONF_SOURCE/staging-05-redpay.conf" "$CONF_DEST/"
 
 echo "Removing old staging configs from $CONF_DEST ..."
 for f in acme-staging.conf staging-subdomains.conf staging-subdomain-proxy.conf \
@@ -109,7 +110,7 @@ done
 # If using sites-available, nginx often loads from sites-enabled (symlinks)
 if [[ "$CONF_DEST" == *sites-available* && -d /etc/nginx/sites-enabled ]]; then
     echo "Note: Configs were copied to sites-available. To enable them:"
-    echo "  cd /etc/nginx/sites-enabled && for f in staging-00-http staging-01-dashboard staging-02-api staging-03-admin staging-04-axisurgent; do ln -sf ../sites-available/\${f}.conf .; done"
+    echo "  cd /etc/nginx/sites-enabled && for f in staging-00-http staging-01-dashboard staging-02-api staging-03-admin staging-04-axisurgent staging-05-redpay; do ln -sf ../sites-available/\${f}.conf .; done"
 fi
 
 NGINX_CONF="/etc/nginx/nginx.conf"

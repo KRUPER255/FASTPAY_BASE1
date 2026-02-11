@@ -132,7 +132,7 @@ All components are **lazy-loaded** using React's `lazy()` and wrapped in `<Suspe
 ## Component File Locations
 
 All components are located in:
-- `/opt/FASTPAY/DASHBOARD/src/component/`
+- This project's `src/component/` (DASHBOARD_FASTPAY)
 
 ---
 

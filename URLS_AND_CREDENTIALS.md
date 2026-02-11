@@ -1,17 +1,31 @@
 # FastPay – Public URLs & default staging credentials
 
+**All URLs below point to this VPS** (domain: `fastpaygaming.com` and subdomains). Staging and production are on the same host; nginx and DNS route by subdomain.
+
 ## Public URLs
+
+### FastPay dashboard (DASHBOARD_FASTPAY – core)
 
 | Environment | Dashboard | API |
 |-------------|-----------|-----|
 | **Staging** | https://staging.fastpaygaming.com/ | https://api-staging.fastpaygaming.com/api/ |
 | **Production** | https://fastpaygaming.com/ | https://api.fastpaygaming.com/api/ |
 
+### RedPay dashboard (DASHBOARD_REDPAY – variant)
+
+| Environment | Dashboard | Notes |
+|-------------|-----------|--------|
+| **Staging** | https://redpay-staging.fastpaygaming.com/ | Same VPS; API: https://api-staging.fastpaygaming.com/api/ |
+| **Production** | https://redpay.fastpaygaming.com/ | This VPS; add nginx server block when RedPay is deployed. |
+
+**Not on this VPS:** `https://owner.fastpaygaming.com/` is a separate deployment (not hosted on this VPS).
+
 ### Staging – direct links
 
-- **Login:** https://staging.fastpaygaming.com/login  
-- **Dashboard (legacy):** https://staging.fastpaygaming.com/dashboard  
-- **Dashboard v2 (5 sections):** https://staging.fastpaygaming.com/dashboard/v2  
+- **FastPay login:** https://staging.fastpaygaming.com/login  
+- **FastPay dashboard (legacy):** https://staging.fastpaygaming.com/dashboard  
+- **FastPay dashboard v2 (5 sections):** https://staging.fastpaygaming.com/dashboard/v2  
+- **RedPay staging:** https://redpay-staging.fastpaygaming.com/  
 
 ### Production – direct links
 
@@ -31,6 +45,28 @@ Used only for **staging**. Login form is pre-filled with these when the app is b
 | **Password** | `superadmin123`          |
 
 **One-click:** Open https://staging.fastpaygaming.com/login and click **Sign In** (fields are already filled).
+
+---
+
+## FastPay and RedPay dashboard login users
+
+Create login users for **FastPay** and **RedPay** dashboards (staging or production). Run once per environment after migrations:
+
+```bash
+# In BACKEND directory or inside backend web container:
+python manage.py create_dashboard_users
+```
+
+Optional args: `--fastpay-email`, `--fastpay-password`, `--fastpay-name`, `--redpay-email`, `--redpay-password`, `--redpay-name`.
+
+**Default users created:**
+
+| Dashboard | Email              | Default password  | Access   |
+|-----------|--------------------|-------------------|----------|
+| **FastPay** | admin@fastpay.com  | FastPayAdmin123   | Full Admin (all dashboards) |
+| **RedPay**  | redpay@fastpay.com | RedPayUser123     | RedPay   |
+
+Use these at **/login** on each dashboard (e.g. https://fastpaygaming.com/login, https://redpay.fastpaygaming.com/login). Change passwords after first login if needed.
 
 ---
 

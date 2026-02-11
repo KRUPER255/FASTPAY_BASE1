@@ -16,7 +16,7 @@ This describes the **from-scratch** staging nginx layout: one clear architecture
    ```
    Or with a custom config directory: `sudo NGINX_CONF_D=/etc/nginx/sites-available ./BACKEND/nginx/apply-staging-on-host.sh`
 
-3. **Result:** Dashboard at https://staging.fastpaygaming.com/, API at https://api-staging.fastpaygaming.com/api/, admin at https://admin-staging.fastpaygaming.com/admin/. Backend test suite passes during deploy; optional `run-staging-tests.sh` provides extra checks.
+3. **Result:** FastPay dashboard at https://staging.fastpaygaming.com/, RedPay at https://redpay-staging.fastpaygaming.com/, API at https://api-staging.fastpaygaming.com/api/, admin at https://admin-staging.fastpaygaming.com/admin/, AXISURGENT at https://axisurgent.fastpaygaming.com/. Backend test suite passes during deploy; optional `run-staging-tests.sh` provides extra checks.
 
 ## Architecture
 
@@ -30,6 +30,7 @@ Internet (HTTPS)
 │  - Reverse proxy only; no static files on host                    │
 ├──────────────────────────────────────────────────────────────────┤
 │  staging.fastpaygaming.com     → proxy_pass http://127.0.0.1:8888 │
+│  redpay-staging.fastpaygaming.com → root /desktop/fastpay/DASHBOARD_REDPAY/dist + proxy /api,/admin → 8001 │
 │  axisurgent.fastpaygaming.com  → proxy_pass http://127.0.0.1:8888 (→ /axisurgent) │
 │  api-staging.fastpaygaming.com → proxy_pass http://127.0.0.1:8001 │
 │  admin-staging.fastpaygaming.com → proxy_pass http://127.0.0.1:8001│
@@ -59,11 +60,12 @@ These live in `BACKEND/nginx/conf.d/` and are **deployed to the host** (e.g. cop
 
 | File | Purpose |
 |------|--------|
-| `staging-00-http.conf` | Listen 80; ACME challenge for certbot; 301 redirect to HTTPS for all three staging hostnames. |
+| `staging-00-http.conf` | Listen 80; ACME challenge for certbot; 301 redirect to HTTPS for all staging hostnames (including redpay-staging). |
 | `staging-01-dashboard.conf` | HTTPS server for `staging.fastpaygaming.com`; proxy to `http://127.0.0.1:8888`. |
-| `staging-04-axisurgent.conf` | HTTPS server for `axisurgent.fastpaygaming.com`; proxy to `http://127.0.0.1:8888`; `/` redirects to `/axisurgent`. |
 | `staging-02-api.conf` | HTTPS server for `api-staging.fastpaygaming.com`; proxy to `http://127.0.0.1:8001`. |
 | `staging-03-admin.conf` | HTTPS server for `admin-staging.fastpaygaming.com`; proxy to `http://127.0.0.1:8001`. |
+| `staging-04-axisurgent.conf` | HTTPS server for `axisurgent.fastpaygaming.com`; proxy to `http://127.0.0.1:8888`; `/` redirects to `/axisurgent`. |
+| `staging-05-redpay.conf` | HTTPS server for `redpay-staging.fastpaygaming.com`; root `/desktop/fastpay/DASHBOARD_REDPAY/dist`; proxy `/api/`, `/admin/`, `/static/`, `/media/` to `http://127.0.0.1:8001`. |
 
 **Upstream convention**
 
@@ -100,7 +102,7 @@ cd BACKEND/nginx
 sudo ./apply-staging-on-host.sh
 ```
 Script path in repo: `BACKEND/nginx/apply-staging-on-host.sh`
-This copies the 4 `staging-0*.conf` files to `/etc/nginx/conf.d/`, removes old staging configs there, runs `nginx -t`, and reloads nginx.
+This copies the 6 `staging-0*.conf` files (including `staging-05-redpay.conf`) to `/etc/nginx/conf.d/`, removes old staging configs there, runs `nginx -t`, and reloads nginx.
 
 **Option B – manual steps:**
 
@@ -114,9 +116,10 @@ This copies the 4 `staging-0*.conf` files to `/etc/nginx/conf.d/`, removes old s
    ```bash
    sudo cp /path/to/FASTPAY_BASE/BACKEND/nginx/conf.d/staging-00-http.conf /etc/nginx/conf.d/
    sudo cp /path/to/FASTPAY_BASE/BACKEND/nginx/conf.d/staging-01-dashboard.conf /etc/nginx/conf.d/
-   sudo cp /path/to/FASTPAY_BASE/BACKEND/nginx/conf.d/staging-04-axisurgent.conf /etc/nginx/conf.d/
    sudo cp /path/to/FASTPAY_BASE/BACKEND/nginx/conf.d/staging-02-api.conf /etc/nginx/conf.d/
    sudo cp /path/to/FASTPAY_BASE/BACKEND/nginx/conf.d/staging-03-admin.conf /etc/nginx/conf.d/
+   sudo cp /path/to/FASTPAY_BASE/BACKEND/nginx/conf.d/staging-04-axisurgent.conf /etc/nginx/conf.d/
+   sudo cp /path/to/FASTPAY_BASE/BACKEND/nginx/conf.d/staging-05-redpay.conf /etc/nginx/conf.d/
    ```
    Remove any old staging configs from `/etc/nginx/conf.d/` (staging-subdomains, staging-subdomain-proxy, acme-staging, api-staging-subdomain, admin-staging-subdomain, etc.).
 
@@ -133,10 +136,42 @@ This copies the 4 `staging-0*.conf` files to `/etc/nginx/conf.d/`, removes old s
    ```
 
 6. **Verify result**:
-   - https://staging.fastpaygaming.com/ → dashboard (redirects to /test/, login).
+   - https://staging.fastpaygaming.com/ → FastPay dashboard (redirects to /test/, login).
+   - https://redpay-staging.fastpaygaming.com/ → RedPay dashboard.
    - https://axisurgent.fastpaygaming.com/ → AXISURGENT page (redirects to /axisurgent).
    - https://api-staging.fastpaygaming.com/api/ → API.
    - https://admin-staging.fastpaygaming.com/admin/ → Django admin.
+
+## RedPay staging – ready after DNS update
+
+Once **redpay-staging.fastpaygaming.com** points to this server, make the site ready:
+
+1. **Add certificate (fixes HTTPS)**  
+   RedPay staging uses the **wildcard** cert for `*.fastpaygaming.com`. Ensure it exists on the server (see [WILDCARD_CERT.md](WILDCARD_CERT.md)):
+   ```bash
+   # From repo root on the server – DNS-01: add TXT _acme-challenge.fastpaygaming.com when prompted
+   ./BACKEND/scripts/certbot-wildcard-fastpaygaming.sh
+   ```
+   If the cert already exists, you can skip or run `sudo certbot renew --cert-name fastpaygaming.com`. Certs go to `/etc/letsencrypt/live/fastpaygaming.com/` (used by `staging-05-redpay.conf`).
+
+2. **Apply host nginx** (from repo root, e.g. `/desktop/fastpay`):
+   ```bash
+   sudo ./BACKEND/nginx/apply-staging-on-host.sh
+   ```
+   Then: `sudo nginx -t && sudo systemctl reload nginx`
+
+3. **Ensure RedPay dashboard is built** (if not already):
+   ```bash
+   cd DASHBOARD_REDPAY && npm ci && ./deploy.sh staging
+   ```
+   This produces `/desktop/fastpay/DASHBOARD_REDPAY/dist` (or your staging base path). Nginx serves this at `https://redpay-staging.fastpaygaming.com/`.
+
+4. **Ensure staging backend is up** (API at 8001):
+   ```bash
+   cd BACKEND && ./deploy.sh staging
+   ```
+
+5. **Verify**: open https://redpay-staging.fastpaygaming.com/ — you should see the RedPay dashboard; `/api/` and `/admin/` are proxied to the staging backend.
 
 ## Docker Staging (Unchanged)
 
@@ -150,7 +185,7 @@ No SSL in Docker; host does SSL and proxies to 8888 and 8001.
 
 ## Deprecated Configs
 
-In the repo, old staging configs are in `conf.d.deprecated/` (not loaded). On the **host**, ensure `/etc/nginx/conf.d/` does not contain any of these (they are replaced by the four `staging-0*.conf` files):
+In the repo, old staging configs are in `conf.d.deprecated/` (not loaded). On the **host**, ensure `/etc/nginx/conf.d/` does not contain any of these (they are replaced by the six `staging-0*.conf` files):
 
 - `staging-subdomains.conf`, `staging-subdomain-proxy.conf`, `staging-proxy.conf`, `staging-proxy-ssl.conf`, `staging-standalone.conf`, `acme-staging.conf`, `api-staging-subdomain.conf`, `admin-staging-subdomain.conf`
 

@@ -50,7 +50,7 @@ This directory contains the main documentation for the FastPay Dashboard project
 ## 🗂️ Documentation Structure
 
 ```
-DASHBOARD/
+This project (DASHBOARD_REDPAY)/
 ├── README.md                              # Main documentation (START HERE)
 ├── DOCUMENTATION.md                       # This file - documentation index
 ├── DASHBOARD_APK_COMPATIBILITY_ISSUES.md # APK compatibility details

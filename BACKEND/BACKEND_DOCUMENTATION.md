@@ -391,6 +391,8 @@ Generic item model (legacy/test model).
 
 ## API Endpoints
 
+**Full API reference:** [docs/API.md](docs/API.md) — method, path, query/body, and response notes for every endpoint.
+
 ### Base URL
 - Development: `http://127.0.0.1:8000/api/`
 - Production: `https://your-domain.com/api/`

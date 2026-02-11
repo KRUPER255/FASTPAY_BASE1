@@ -1,0 +1,14 @@
+---
+description: FASTPAY_BASE GitHub repository reference
+alwaysApply: true
+---
+
+# FASTPAY_BASE Repository
+
+This project's GitHub repository:
+
+- **URL**: https://github.com/TBIRDS130/FASTPAY_BASE.git
+
+Use this when referring to the remote, cloning, or documenting the project source.
+
+- **Dashboard code:** **DASHBOARD_FASTPAY** is the common reference (core); **DASHBOARD_REDPAY** is the variant. See [docs/VPS_DEPLOY_STRUCTURE.md](docs/VPS_DEPLOY_STRUCTURE.md) (section "Dashboard apps in this repo").

@@ -189,8 +189,54 @@ if [[ -n "$COMPOSE_PROJECT" ]]; then
 fi
 
 # Export environment variables for docker-compose variable substitution
+# Preserve dist paths if already set (e.g. by deploy-all.sh or deploy-production.sh)
+SAVED_STAGING_DIST=""
+SAVED_DASHBOARD_DIST=""
+[[ -n "$STAGING_DASHBOARD_DIST_PATH" ]] && SAVED_STAGING_DIST="$STAGING_DASHBOARD_DIST_PATH"
+[[ -n "$DASHBOARD_DIST_PATH" ]] && SAVED_DASHBOARD_DIST="$DASHBOARD_DIST_PATH"
 echo -e "${GREEN}Loading environment variables from $ENV_FILE...${NC}"
 export $(cat "$ENV_FILE" | grep -v '^#' | xargs)
+[[ -n "$SAVED_STAGING_DIST" ]] && export STAGING_DASHBOARD_DIST_PATH="$SAVED_STAGING_DIST"
+[[ -n "$SAVED_DASHBOARD_DIST" ]] && export DASHBOARD_DIST_PATH="$SAVED_DASHBOARD_DIST"
+
+# Staging: ensure FastPay and RedPay dashboard dists exist with at least a placeholder so nginx does not return 403
+if [[ "$ENVIRONMENT" == "staging" ]]; then
+    FASTPAY_DEST="${STAGING_DASHBOARD_DIST_PATH:-/desktop/fastpay/DASHBOARD_FASTPAY/dist}"
+    if [[ ! -f "$FASTPAY_DEST/index.html" ]]; then
+        echo -e "${YELLOW}Staging FastPay dashboard dist missing or empty at $FASTPAY_DEST. Creating placeholder so nginx returns 200 instead of 403.${NC}"
+        mkdir -p "$FASTPAY_DEST"
+        cat > "$FASTPAY_DEST/index.html" << 'PLACEHOLDER'
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Staging Dashboard</title></head>
+<body style="font-family:sans-serif;max-width:560px;margin:2em auto;padding:1em;">
+<h1>Staging dashboard not built</h1>
+<p>Build the FastPay dashboard so this page is replaced:</p>
+<pre>cd DASHBOARD_FASTPAY && npm ci && ./deploy.sh staging</pre>
+<p>Or from repo root: <code>./deploy-all.sh --no-input --skip-tests</code></p>
+<p>See <a href="https://github.com/TBIRDS130/FASTPAY_BASE">FASTPAY_BASE</a> and <code>docs/VPS_DEPLOY_STRUCTURE.md</code>.</p>
+</body></html>
+PLACEHOLDER
+        echo -e "${GREEN}Placeholder written to $FASTPAY_DEST/index.html${NC}"
+    fi
+    # RedPay staging: host nginx serves from STAGING_REDPAY_DIST_PATH or derived path (see staging-05-redpay.conf)
+    REDPAY_DEST="${STAGING_REDPAY_DIST_PATH:-/desktop/fastpay/DASHBOARD_REDPAY/dist}"
+    if [[ ! -f "$REDPAY_DEST/index.html" ]]; then
+        echo -e "${YELLOW}Staging RedPay dashboard dist missing or empty at $REDPAY_DEST. Creating placeholder so redpay-staging returns 200 instead of 403.${NC}"
+        mkdir -p "$REDPAY_DEST"
+        cat > "$REDPAY_DEST/index.html" << 'PLACEHOLDER'
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>RedPay Staging</title></head>
+<body style="font-family:sans-serif;max-width:560px;margin:2em auto;padding:1em;">
+<h1>RedPay staging dashboard not built</h1>
+<p>Build the RedPay dashboard so this page is replaced:</p>
+<pre>cd DASHBOARD_REDPAY && npm ci && ./deploy.sh staging</pre>
+<p>Or from repo root: <code>./deploy-all.sh --no-input --skip-tests</code></p>
+<p>See <a href="https://github.com/TBIRDS130/FASTPAY_BASE">FASTPAY_BASE</a> and <code>docs/VPS_DEPLOY_STRUCTURE.md</code>.</p>
+</body></html>
+PLACEHOLDER
+        echo -e "${GREEN}Placeholder written to $REDPAY_DEST/index.html${NC}"
+    fi
+fi
 
 if [[ "$SKIP_PULL" == "true" ]]; then
     echo -e "${YELLOW}Skipping git pull (--skip-pull). Using current tree.${NC}"

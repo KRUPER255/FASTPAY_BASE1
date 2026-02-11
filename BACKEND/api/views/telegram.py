@@ -17,7 +17,7 @@ from api.serializers import (
     TelegramBotUpdateSerializer,
     TelegramBotTestSerializer,
 )
-from api.views_legacy import SkipLimitPagination
+from api.pagination import SkipLimitPagination
 
 logger = logging.getLogger(__name__)
 

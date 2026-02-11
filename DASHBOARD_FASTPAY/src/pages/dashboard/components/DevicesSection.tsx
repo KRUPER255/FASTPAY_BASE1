@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/component/ui/card'
 import DeviceListManager from '@/component/DeviceListManager'
 import { BankCardsList } from './BankCardsList'
-import { CreditCard, Smartphone } from 'lucide-react'
+import { DeviceAssignmentPanel } from './DeviceAssignmentPanel'
+import { CreditCard, Smartphone, UserPlus } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/component/ui/tabs'
+import { hasFullAccess } from '@/lib/auth'
 
 interface DevicesSectionProps {
   onDeviceSelect: (deviceId: string) => void
@@ -11,7 +13,8 @@ interface DevicesSectionProps {
 }
 
 export function DevicesSection({ onDeviceSelect, onAttachBankCard }: DevicesSectionProps) {
-  const [activeSection, setActiveSection] = useState<'bank-cards' | 'devices'>('bank-cards')
+  const isAdmin = hasFullAccess()
+  const [activeSection, setActiveSection] = useState<'bank-cards' | 'devices' | 'assign'>('bank-cards')
 
   return (
     <Card>
@@ -27,7 +30,7 @@ export function DevicesSection({ onDeviceSelect, onAttachBankCard }: DevicesSect
             </CardDescription>
           </div>
           <Tabs value={activeSection} onValueChange={value => setActiveSection(value as typeof activeSection)}>
-            <TabsList className="grid grid-cols-2">
+            <TabsList className={`grid ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'}`}>
               <TabsTrigger value="bank-cards" className="gap-2">
                 <CreditCard className="h-4 w-4" />
                 Bank Cards
@@ -36,6 +39,12 @@ export function DevicesSection({ onDeviceSelect, onAttachBankCard }: DevicesSect
                 <Smartphone className="h-4 w-4" />
                 Devices
               </TabsTrigger>
+              {isAdmin && (
+                <TabsTrigger value="assign" className="gap-2">
+                  <UserPlus className="h-4 w-4" />
+                  Assign to User
+                </TabsTrigger>
+              )}
             </TabsList>
           </Tabs>
         </div>
@@ -48,6 +57,11 @@ export function DevicesSection({ onDeviceSelect, onAttachBankCard }: DevicesSect
           <TabsContent value="devices" className="mt-4">
             <DeviceListManager onSelectDevice={onDeviceSelect} onAttachBankCard={onAttachBankCard} />
           </TabsContent>
+          {isAdmin && (
+            <TabsContent value="assign" className="mt-4">
+              <DeviceAssignmentPanel />
+            </TabsContent>
+          )}
         </Tabs>
       </CardContent>
     </Card>

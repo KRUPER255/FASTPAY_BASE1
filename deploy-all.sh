@@ -15,6 +15,7 @@
 # Options:
 #   --skip-dashboard      Skip dashboard build (same as target backend)
 #   --skip-backend        Skip backend deployment (same as target dashboard)
+#   --skip-redpay         Skip RedPay dashboard build (only build DASHBOARD_FASTPAY)
 #   --pull                Run git pull (default: skip pull, deploy local only)
 #   --skip-pull           Don't run git pull (default for staging)
 #   --skip-tests          Skip backend tests
@@ -42,6 +43,7 @@ NC='\033[0m'
 # Default options (staging: deploy local, no git pull)
 SKIP_DASHBOARD=false
 SKIP_BACKEND=false
+SKIP_REDPAY=false
 SKIP_PULL=true
 SKIP_TESTS=false
 SKIP_NOTIFY=false
@@ -66,6 +68,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --skip-dashboard) SKIP_DASHBOARD=true; shift ;;
         --skip-backend) SKIP_BACKEND=true; shift ;;
+        --skip-redpay) SKIP_REDPAY=true; shift ;;
         --pull) SKIP_PULL=false; shift ;;
         --skip-pull) SKIP_PULL=true; shift ;;
         --skip-tests) SKIP_TESTS=true; shift ;;
@@ -135,8 +138,10 @@ notify_success() {
 <b>Server:</b> $(hostname)
 
 <b>URLs:</b>
+• FastPay: https://staging.fastpaygaming.com/
+• RedPay: https://redpay-staging.fastpaygaming.com/
 • API: https://api-staging.fastpaygaming.com/api/
-• Dashboard: https://staging.fastpaygaming.com/"
+• Admin: https://admin-staging.fastpaygaming.com/admin/"
     
     if [[ -n "$services_status" ]]; then
         msg+="
@@ -180,8 +185,9 @@ echo -e "${BLUE}=========================================${NC}"
 echo -e "${BLUE}FastPay Staging Full Deployment${NC}"
 echo -e "${BLUE}=========================================${NC}"
 echo ""
-echo "Dashboard build: $([[ "$SKIP_DASHBOARD" == "true" ]] && echo "SKIP" || echo "YES")"
-echo "Backend deploy:  $([[ "$SKIP_BACKEND" == "true" ]] && echo "SKIP" || echo "YES")"
+echo "Dashboard (FastPay) build: $([[ "$SKIP_DASHBOARD" == "true" ]] && echo "SKIP" || echo "YES")"
+echo "Dashboard (RedPay) build:  $([[ "$SKIP_DASHBOARD" == "true" || "$SKIP_REDPAY" == "true" ]] && echo "SKIP" || echo "YES")"
+echo "Backend deploy:            $([[ "$SKIP_BACKEND" == "true" ]] && echo "SKIP" || echo "YES")"
 echo "Git pull:        $([[ "$SKIP_PULL" == "true" ]] && echo "SKIP" || echo "YES")"
 echo "Tests:           $([[ "$SKIP_TESTS" == "true" ]] && echo "SKIP" || echo "YES")"
 echo "Notifications:   $([[ "$SKIP_NOTIFY" == "true" ]] && echo "SKIP" || echo "YES")"
@@ -244,6 +250,14 @@ if [[ "$SKIP_DASHBOARD" != "true" ]]; then
             echo -e "${YELLOW}Could not copy to $DEST. Copy manually.${NC}"
         fi
     fi
+
+    # Build RedPay dashboard (staging; served at https://redpay-staging.fastpaygaming.com/)
+    if [[ "$SKIP_REDPAY" != "true" && -x "$SCRIPT_DIR/DASHBOARD_REDPAY/deploy.sh" ]]; then
+        CURRENT_STEP="Step 2c: Building RedPay dashboard (DASHBOARD_REDPAY)"
+        echo -e "${GREEN}${CURRENT_STEP}...${NC}"
+        "$SCRIPT_DIR/DASHBOARD_REDPAY/deploy.sh" staging
+        echo -e "${GREEN}RedPay dashboard built; URL: https://redpay-staging.fastpaygaming.com/${NC}"
+    fi
     echo ""
 fi
 
@@ -253,6 +267,11 @@ fi
 if [[ "$SKIP_BACKEND" != "true" ]]; then
     CURRENT_STEP="Step 3: Deploying backend"
     echo -e "${GREEN}${CURRENT_STEP}...${NC}"
+    
+    # So the staging nginx container mounts the dashboard we just built (when run from repo root)
+    FASTPAY_DIST="${SCRIPT_DIR}/DASHBOARD_FASTPAY/dist"
+    [[ -d "$FASTPAY_DIST" ]] || FASTPAY_DIST="${SCRIPT_DIR}/DASHBOARD/dist"
+    export STAGING_DASHBOARD_DIST_PATH="$FASTPAY_DIST"
     
     cd "$SCRIPT_DIR/BACKEND"
     
@@ -309,6 +328,34 @@ else
     echo -e "${YELLOW}  If unreachable, ensure host nginx is configured (see BACKEND/nginx/STAGING_NGINX.md and run apply-staging-on-host.sh on the server).${NC}"
 fi
 
+# Check public Admin
+echo "Checking public Admin..."
+ADMIN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 -L https://admin-staging.fastpaygaming.com/admin/ 2>/dev/null || echo "000")
+if [[ "$ADMIN_STATUS" == "200" || "$ADMIN_STATUS" == "302" ]]; then
+    echo -e "${GREEN}Public Admin: OK (HTTP $ADMIN_STATUS)${NC}"
+else
+    echo -e "${YELLOW}Public Admin: HTTP $ADMIN_STATUS${NC}"
+fi
+
+# Check RedPay staging dashboard
+echo "Checking RedPay staging dashboard..."
+REDPAY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 -L https://redpay-staging.fastpaygaming.com/ 2>/dev/null || echo "000")
+if [[ "$REDPAY_STATUS" == "200" || "$REDPAY_STATUS" == "302" ]]; then
+    echo -e "${GREEN}RedPay staging: OK (HTTP $REDPAY_STATUS)${NC}"
+else
+    echo -e "${YELLOW}RedPay staging: HTTP $REDPAY_STATUS${NC}"
+    echo -e "${YELLOW}  If unreachable, ensure host nginx includes staging-05-redpay.conf and run apply-staging-on-host.sh.${NC}"
+fi
+
+# Check AXISURGENT (optional)
+echo "Checking AXISURGENT..."
+AXIS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 -L https://axisurgent.fastpaygaming.com/ 2>/dev/null || echo "000")
+if [[ "$AXIS_STATUS" == "200" || "$AXIS_STATUS" == "302" ]]; then
+    echo -e "${GREEN}AXISURGENT: OK (HTTP $AXIS_STATUS)${NC}"
+else
+    echo -e "${YELLOW}AXISURGENT: HTTP $AXIS_STATUS${NC}"
+fi
+
 # Optional: run staging test plan (warning only on failure)
 if [[ -x "$SCRIPT_DIR/run-staging-tests.sh" ]]; then
     echo "Running staging test plan..."
@@ -327,9 +374,12 @@ echo -e "${GREEN}=========================================${NC}"
 echo -e "${GREEN}Staging deployment completed!${NC}"
 echo -e "${GREEN}=========================================${NC}"
 echo ""
-echo "Dashboard: https://staging.fastpaygaming.com/  (or http://localhost:8888/)"
-echo "API:       https://api-staging.fastpaygaming.com/api/  (or http://localhost:8001/api/)"
-echo "Admin:     https://api-staging.fastpaygaming.com/admin/"
+echo "Public URLs (all staging):"
+echo "  FastPay:   https://staging.fastpaygaming.com/  (or http://localhost:8888/)"
+echo "  RedPay:    https://redpay-staging.fastpaygaming.com/"
+echo "  API:       https://api-staging.fastpaygaming.com/api/  (or http://localhost:8001/api/)"
+echo "  Admin:     https://admin-staging.fastpaygaming.com/admin/"
+echo "  AXISURGENT: https://axisurgent.fastpaygaming.com/"
 echo ""
 
 # Send success notification

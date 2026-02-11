@@ -56,6 +56,11 @@ from .dashboard import (
     dashboard_activity_logs,
     dashboard_send_verification_email,
     dashboard_verify_email_token,
+    dashboard_users_list,
+    devices_assign,
+    devices_unassign,
+    dashboard_user_create,
+    dashboard_user_update,
 )
 
 # Gmail views
@@ -157,6 +162,11 @@ __all__ = [
     'dashboard_activity_logs',
     'dashboard_send_verification_email',
     'dashboard_verify_email_token',
+    'dashboard_users_list',
+    'devices_assign',
+    'devices_unassign',
+    'dashboard_user_create',
+    'dashboard_user_update',
     # Gmail
     'GmailAccountViewSet',
     'gmail_init_auth',

@@ -58,7 +58,7 @@ export interface InputFile {
   size: number
 }
 
-export type DashboardSectionType = 'device' | 'bankcard' | 'utility' | 'api' | 'profile'
+export type DashboardSectionType = 'device' | 'bankcard' | 'utility' | 'api' | 'profile' | 'users'
 
 export type ActiveTabType =
   | 'overview'

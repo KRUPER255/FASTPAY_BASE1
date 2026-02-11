@@ -168,6 +168,114 @@ export async function fetchDevices(filters?: {
   }
 }
 
+export interface DashboardUser {
+  email: string
+  full_name: string | null
+  access_level: number
+  status: string
+  assigned_device_count: number
+}
+
+/**
+ * Fetch dashboard users (admin-only)
+ * @param adminEmail Email of the admin user making the request
+ */
+export async function fetchDashboardUsers(adminEmail: string): Promise<DashboardUser[]> {
+  const url = getApiUrl('/dashboard-users/') + `?admin_email=${encodeURIComponent(adminEmail)}`
+  const response = await fetchWithRetry(url, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+  })
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err.error || `Failed to fetch dashboard users: ${response.statusText}`)
+  }
+  const data = await response.json()
+  if (!data.success || !Array.isArray(data.users)) return []
+  return data.users
+}
+
+/**
+ * Assign devices to a user (admin-only)
+ */
+export async function assignDevicesToUser(
+  adminEmail: string,
+  userEmail: string,
+  deviceIds: string[]
+): Promise<{ assigned_count: number }> {
+  const response = await fetchWithRetry(getApiUrl('/devices/assign/'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({ admin_email: adminEmail, user_email: userEmail, device_ids: deviceIds }),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.error || 'Failed to assign devices')
+  return { assigned_count: data.assigned_count ?? 0 }
+}
+
+/**
+ * Unassign devices from a user (admin-only)
+ */
+export async function unassignDevicesFromUser(
+  adminEmail: string,
+  userEmail: string,
+  deviceIds: string[]
+): Promise<{ unassigned_count: number }> {
+  const response = await fetchWithRetry(getApiUrl('/devices/unassign/'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({ admin_email: adminEmail, user_email: userEmail, device_ids: deviceIds }),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.error || 'Failed to unassign devices')
+  return { unassigned_count: data.unassigned_count ?? 0 }
+}
+
+/**
+ * Create a dashboard user (admin-only)
+ */
+export async function createDashboardUser(
+  adminEmail: string,
+  params: { email: string; password: string; full_name?: string; access_level: number }
+): Promise<DashboardUser> {
+  const response = await fetchWithRetry(getApiUrl('/dashboard-user-create/'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({
+      admin_email: adminEmail,
+      email: params.email,
+      password: params.password,
+      full_name: params.full_name || '',
+      access_level: params.access_level,
+    }),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.error || 'Failed to create user')
+  return { ...data.user, assigned_device_count: 0 }
+}
+
+/**
+ * Update a dashboard user (admin-only)
+ */
+export async function updateDashboardUser(
+  adminEmail: string,
+  email: string,
+  params: { full_name?: string; access_level?: number; status?: string }
+): Promise<DashboardUser> {
+  const response = await fetchWithRetry(getApiUrl('/dashboard-user-update/'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({
+      admin_email: adminEmail,
+      email,
+      ...params,
+    }),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.error || 'Failed to update user')
+  return { ...data.user, assigned_device_count: 0 }
+}
+
 /**
  * Send SMS via API with fallback mechanism
  */

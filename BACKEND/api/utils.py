@@ -1,12 +1,13 @@
 """
-DEPRECATED: This file has been moved to api/utils/ module.
+Compatibility shim: re-exports from the api.utils package (api/utils/*.py).
 
-This file is kept for backward compatibility during migration.
-New code should import from api.utils instead:
+This module exists so that existing imports like `from api.utils import send_sms`
+continue to work. New code should prefer importing from the package submodules
+directly, e.g.:
 
-    from api.utils import send_sms, send_whatsapp
-    from api.utils import initialize_firebase, hard_sync_device_from_firebase
-    from api.utils import get_or_create_admin_user, get_all_admin_users
+    from api.utils.firebase import initialize_firebase, hard_sync_device_from_firebase
+    from api.utils.sms import send_sms, send_whatsapp
+    from api.utils.helpers import get_or_create_admin_user, get_all_admin_users
 """
 # Re-export everything from the new utils module
 from api.utils import *

@@ -1,0 +1,216 @@
+version: "3.9"
+
+services:
+  ###########################################################################
+  # Reverse proxy (Traefik)
+  ###########################################################################
+  traefik:
+    image: traefik:v2.11
+    container_name: traefik
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.letsencrypt.acme.email=${TRAEFIK_ACME_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/letsencrypt:/letsencrypt
+    networks:
+      - web
+    labels:
+      - "traefik.enable=true"
+      # Redirect all HTTP to HTTPS
+      - "traefik.http.routers.http-catchall.rule=HostRegexp(`{host:.+}`)"
+      - "traefik.http.routers.http-catchall.entrypoints=web"
+      - "traefik.http.routers.http-catchall.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+
+  ###########################################################################
+  # Backend - Staging
+  ###########################################################################
+  backend-staging:
+    build:
+      context: ./BACKEND
+      dockerfile: Dockerfile
+    env_file:
+      - ./BACKEND/.env.staging
+    environment:
+      # Make it explicit inside Django
+      ENVIRONMENT: staging
+    depends_on:
+      - postgres-staging
+      - redis-staging
+    networks:
+      - web
+      - staging
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend-staging.rule=Host(`api-staging.fastpaygaming.com`)"
+      - "traefik.http.routers.backend-staging.entrypoints=websecure"
+      - "traefik.http.routers.backend-staging.tls.certresolver=letsencrypt"
+      - "traefik.http.services.backend-staging.loadbalancer.server.port=8000"
+
+  postgres-staging:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${STAGING_DB_NAME:-fastpay_staging}
+      POSTGRES_USER: ${STAGING_DB_USER:-fastpay}
+      POSTGRES_PASSWORD: ${STAGING_DB_PASSWORD:-fastpay}
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql/data
+    networks:
+      - staging
+
+  redis-staging:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_staging_data:/data
+    networks:
+      - staging
+
+  ###########################################################################
+  # Backend - Production
+  ###########################################################################
+  backend-prod:
+    build:
+      context: ./BACKEND
+      dockerfile: Dockerfile
+    env_file:
+      - ./BACKEND/.env.production
+    environment:
+      ENVIRONMENT: production
+    depends_on:
+      - postgres-prod
+      - redis-prod
+    networks:
+      - web
+      - prod
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend-prod.rule=Host(`api.fastpaygaming.com`)"
+      - "traefik.http.routers.backend-prod.entrypoints=websecure"
+      - "traefik.http.routers.backend-prod.tls.certresolver=letsencrypt"
+      - "traefik.http.services.backend-prod.loadbalancer.server.port=8000"
+
+  postgres-prod:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PROD_DB_NAME:-fastpay_prod}
+      POSTGRES_USER: ${PROD_DB_USER:-fastpay}
+      POSTGRES_PASSWORD: ${PROD_DB_PASSWORD:-fastpay}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    networks:
+      - prod
+
+  redis-prod:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_prod_data:/data
+    networks:
+      - prod
+
+  ###########################################################################
+  # Dashboards - Staging
+  ###########################################################################
+  fastpay-dashboard-staging:
+    build:
+      context: ./DASHBOARD_FASTPAY
+      dockerfile: Dockerfile
+      args:
+        # Override these via environment or .env when building
+        VITE_API_BASE_URL: ${FASTPAY_STAGING_API_BASE_URL:-https://api-staging.fastpaygaming.com}
+        VITE_BASE_PATH: /
+    networks:
+      - web
+      - staging
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fastpay-dashboard-staging.rule=Host(`staging.fastpaygaming.com`)"
+      - "traefik.http.routers.fastpay-dashboard-staging.entrypoints=websecure"
+      - "traefik.http.routers.fastpay-dashboard-staging.tls.certresolver=letsencrypt"
+      - "traefik.http.services.fastpay-dashboard-staging.loadbalancer.server.port=80"
+
+  redpay-dashboard-staging:
+    build:
+      context: ./DASHBOARD_REDPAY
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${REDPAY_STAGING_API_BASE_URL:-https://api-staging.fastpaygaming.com}
+        VITE_BASE_PATH: /
+        VITE_REDPAY_ONLY: "true"
+    networks:
+      - web
+      - staging
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.redpay-dashboard-staging.rule=Host(`redpay-staging.fastpaygaming.com`)"
+      - "traefik.http.routers.redpay-dashboard-staging.entrypoints=websecure"
+      - "traefik.http.routers.redpay-dashboard-staging.tls.certresolver=letsencrypt"
+      - "traefik.http.services.redpay-dashboard-staging.loadbalancer.server.port=80"
+
+  ###########################################################################
+  # Dashboards - Production
+  ###########################################################################
+  fastpay-dashboard-prod:
+    build:
+      context: ./DASHBOARD_FASTPAY
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${FASTPAY_PROD_API_BASE_URL:-https://api.fastpaygaming.com}
+        VITE_BASE_PATH: /
+    networks:
+      - web
+      - prod
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fastpay-dashboard-prod.rule=Host(`fastpaygaming.com`)"
+      - "traefik.http.routers.fastpay-dashboard-prod.entrypoints=websecure"
+      - "traefik.http.routers.fastpay-dashboard-prod.tls.certresolver=letsencrypt"
+      - "traefik.http.services.fastpay-dashboard-prod.loadbalancer.server.port=80"
+
+  redpay-dashboard-prod:
+    build:
+      context: ./DASHBOARD_REDPAY
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${REDPAY_PROD_API_BASE_URL:-https://api.fastpaygaming.com}
+        VITE_BASE_PATH: /
+        VITE_REDPAY_ONLY: "true"
+    networks:
+      - web
+      - prod
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.redpay-dashboard-prod.rule=Host(`redpay.fastpaygaming.com`)"
+      - "traefik.http.routers.redpay-dashboard-prod.entrypoints=websecure"
+      - "traefik.http.routers.redpay-dashboard-prod.tls.certresolver=letsencrypt"
+      - "traefik.http.services.redpay-dashboard-prod.loadbalancer.server.port=80"
+
+networks:
+  web:
+    driver: bridge
+  staging:
+    driver: bridge
+  prod:
+    driver: bridge
+
+volumes:
+  postgres_staging_data:
+  redis_staging_data:
+  postgres_prod_data:
+  redis_prod_data:
+

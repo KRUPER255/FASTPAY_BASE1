@@ -12,7 +12,7 @@ All `*.fastpaygaming.com` subdomains can use a **single Let's Encrypt wildcard c
 
 - `fastpaygaming.com`, `www.fastpaygaming.com`
 - `api.fastpaygaming.com`
-- `staging.fastpaygaming.com`, `api-staging.fastpaygaming.com`, `admin-staging.fastpaygaming.com`
+- `staging.fastpaygaming.com`, `api-staging.fastpaygaming.com`, `admin-staging.fastpaygaming.com`, `redpay-staging.fastpaygaming.com`
 - `owner.fastpaygaming.com`
 - Any future subdomain
 

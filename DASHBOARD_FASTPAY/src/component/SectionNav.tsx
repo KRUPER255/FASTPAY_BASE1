@@ -1,24 +1,27 @@
 import React from 'react'
-import { DASHBOARD_SECTIONS } from '@/lib/dashboard-sections'
+import { getVisibleSections } from '@/lib/dashboard-sections'
 import type { DashboardSectionType } from '@/pages/dashboard/types'
 import { cn } from '@/lib/utils'
 
 interface SectionNavProps {
   activeSection: DashboardSectionType
   onSectionChange: (key: DashboardSectionType) => void
+  userAccessLevel?: number
 }
 
 export const SectionNav: React.FC<SectionNavProps> = ({
   activeSection,
   onSectionChange,
+  userAccessLevel = 0,
 }) => {
+  const sections = getVisibleSections(userAccessLevel)
   return (
     <div className="flex rounded-2xl overflow-hidden border border-border bg-card shadow-sm">
       <div className="flex flex-1 min-w-0">
-        {DASHBOARD_SECTIONS.map((section, index) => {
+        {sections.map((section, index) => {
           const Icon = section.icon
           const isFirst = index === 0
-          const isLast = index === DASHBOARD_SECTIONS.length - 1
+          const isLast = index === sections.length - 1
           const isActive = activeSection === section.key
 
           return (

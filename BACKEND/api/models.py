@@ -688,6 +688,8 @@ class ActivityLog(models.Model):
         ('access_level_change', 'Access Level Change'),
         ('user_created', 'User Created'),
         ('user_deleted', 'User Deleted'),
+        ('device_assignment', 'Device Assignment'),
+        ('device_unassignment', 'Device Unassignment'),
     ]
     
     user_email = models.EmailField(
