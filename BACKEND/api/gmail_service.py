@@ -2,9 +2,11 @@
 Gmail API Service
 Handles all Gmail API interactions using stored OAuth tokens
 """
+import hmac
 import os
 import requests
 import secrets
+import time
 from datetime import datetime, timedelta
 from django.utils import timezone
 from typing import Optional, Dict, List, Any
@@ -25,6 +27,16 @@ GMAIL_SCOPES = [
     'https://www.googleapis.com/auth/gmail.modify',
     'https://www.googleapis.com/auth/gmail.send',
 ]
+
+# Drive scopes for "Connect Gmail & Drive" (same OAuth flow, same token stored in GmailAccount)
+DRIVE_SCOPES = [
+    'https://www.googleapis.com/auth/drive.readonly',
+    'https://www.googleapis.com/auth/drive.file',
+    'https://www.googleapis.com/auth/drive',
+]
+
+# Combined scopes requested at OAuth so one connection works for both Gmail and Drive
+OAUTH_SCOPES = GMAIL_SCOPES + DRIVE_SCOPES
 
 
 class GmailServiceError(Exception):
@@ -265,16 +277,67 @@ def generate_oauth_instruction_card(device_id: str, auth_url: str) -> Dict[str, 
     }
 
 
-def generate_oauth_url(user_email: str, state: str = None) -> Dict[str, Any]:
+def _state_secret() -> bytes:
+    """Secret for signing OAuth state (no session needed on callback)."""
+    key = os.environ.get('SECRET_KEY', '') or os.environ.get('DJANGO_SECRET_KEY', '')
+    return (key or 'gmail-oauth-state-fallback').encode('utf-8')[:64]
+
+
+def make_signed_state(state_token: str, user_email: str, dashboard_origin: str = None, dashboard_path: str = None) -> str:
+    """Build state param that can be verified without session (works across subdomains).
+    Optional dashboard_origin and dashboard_path so callback can redirect back to the correct dashboard (e.g. REDPAY /dashboard).
     """
-    Generate Google OAuth URL for Gmail authentication
-    
-    Args:
-        user_email: User email identifier
-        state: Optional CSRF state token (will generate if not provided)
-    
-    Returns:
-        Dictionary with auth_url, state, and expires_in
+    ts = int(time.time())
+    if dashboard_origin:
+        path = (dashboard_path or 'dashboard/v2').strip()
+        origin_part = f"{dashboard_origin.strip()}|{path}"
+    else:
+        origin_part = ''
+    payload = f"{state_token}|{user_email}|{ts}|{origin_part}"
+    sig = hmac.new(_state_secret(), payload.encode('utf-8'), 'sha256').hexdigest()[:32]
+    return f"{payload}|{sig}"
+
+
+def verify_signed_state(state_param: str, max_age_seconds: int = 600) -> tuple:
+    """
+    Verify signed state; return (state_token, user_email, dashboard_origin, dashboard_path) or raise GmailServiceError.
+    dashboard_origin/dashboard_path may be None (backward compatible with old 4-part state).
+    max_age_seconds: reject state older than this (default 10 min).
+    """
+    parts = state_param.split('|')
+    if len(parts) == 4:
+        state_token, user_email, ts_str, sig = parts
+        payload = f"{state_token}|{user_email}|{ts_str}"
+        dashboard_origin, dashboard_path = None, 'dashboard/v2'
+    elif len(parts) == 5:
+        state_token, user_email, ts_str, origin_part, sig = parts
+        payload = f"{state_token}|{user_email}|{ts_str}|{origin_part}"
+        if (origin_part or '').strip() and '|' in origin_part:
+            o, p = origin_part.strip().split('|', 1)
+            dashboard_origin, dashboard_path = o or None, (p or 'dashboard/v2').strip()
+        else:
+            dashboard_origin = (origin_part or '').strip() or None
+            dashboard_path = 'dashboard/v2'
+    else:
+        raise GmailServiceError('Invalid state format')
+    try:
+        ts = int(ts_str)
+    except ValueError:
+        raise GmailServiceError('Invalid state timestamp')
+    if time.time() - ts > max_age_seconds:
+        raise GmailServiceError('State expired. Please try again.')
+    expected = hmac.new(_state_secret(), payload.encode('utf-8'), 'sha256').hexdigest()[:32]
+    if not hmac.compare_digest(expected, sig):
+        raise GmailServiceError('Invalid state signature')
+    return state_token, user_email, dashboard_origin, dashboard_path
+
+
+def generate_oauth_url(user_email: str, state: str = None, dashboard_origin: str = None, dashboard_path: str = None) -> Dict[str, Any]:
+    """
+    Generate Google OAuth URL for Gmail authentication.
+    State is signed so the callback can verify without session (works when dashboard and API are on different subdomains).
+    dashboard_origin: if set, encoded into state so callback redirects back to that origin (e.g. REDPAY).
+    dashboard_path: path on that origin (e.g. 'dashboard' for REDPAY, 'dashboard/v2' for FASTPAY).
     """
     if not GOOGLE_CLIENT_ID:
         raise GmailServiceError('Google Client ID not configured. Please set GOOGLE_CLIENT_ID')
@@ -282,23 +345,18 @@ def generate_oauth_url(user_email: str, state: str = None) -> Dict[str, Any]:
     if not state:
         state = secrets.token_urlsafe(32)
     
-    # Build OAuth URL
+    full_state = make_signed_state(state, user_email, dashboard_origin=dashboard_origin, dashboard_path=dashboard_path)
+    
     auth_url = 'https://accounts.google.com/o/oauth2/v2/auth'
     params = {
         'client_id': GOOGLE_CLIENT_ID,
         'redirect_uri': GOOGLE_REDIRECT_URI,
         'response_type': 'code',
-        'scope': ' '.join(GMAIL_SCOPES),
+        'scope': ' '.join(OAUTH_SCOPES),
         'access_type': 'offline',
         'prompt': 'consent',
-        'state': state,
+        'state': full_state,
     }
-    
-    # Add user_email to state for callback identification
-    # In production, you might want to encrypt this
-    full_state = f"{state}:{user_email}"
-    
-    params['state'] = full_state
     
     query_string = '&'.join([f"{k}={requests.utils.quote(str(v))}" for k, v in params.items()])
     full_auth_url = f"{auth_url}?{query_string}"
@@ -306,7 +364,7 @@ def generate_oauth_url(user_email: str, state: str = None) -> Dict[str, Any]:
     return {
         'auth_url': full_auth_url,
         'state': state,
-        'expires_in': 600,  # 10 minutes
+        'expires_in': 600,
     }
 
 
@@ -447,7 +505,8 @@ def fetch_gmail_messages(
     gmail_account: GmailAccount,
     max_results: int = 25,
     page_token: Optional[str] = None,
-    query: Optional[str] = None
+    query: Optional[str] = None,
+    label_ids: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     Fetch Gmail messages
@@ -457,6 +516,7 @@ def fetch_gmail_messages(
         max_results: Maximum number of messages to return
         page_token: Token for pagination
         query: Gmail search query
+        label_ids: Optional list of Gmail label IDs to filter by
         
     Returns:
         Dictionary with messages list and nextPageToken
@@ -472,6 +532,9 @@ def fetch_gmail_messages(
         params['pageToken'] = page_token
     if query:
         params['q'] = query
+    if label_ids:
+        # Gmail API expects labelIds; `requests` will encode lists as repeated params
+        params['labelIds'] = label_ids
     
     headers = {'Authorization': f'Bearer {token}'}
     

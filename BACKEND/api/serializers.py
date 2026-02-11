@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.core.validators import EmailValidator
 from django.core.exceptions import ValidationError
-from .models import Item, Device, Message, Notification, Contact, BankCardTemplate, BankCard, Bank, GmailAccount, CommandLog, AutoReplyLog, ActivationFailureLog, ApiRequestLog, CaptureItem
+from .models import Item, Device, Message, Notification, Contact, BankCardTemplate, BankCard, Bank, GmailAccount, CommandLog, AutoReplyLog, ActivationFailureLog, ApiRequestLog, CaptureItem, TelegramBot
 
 
 class ItemSerializer(serializers.ModelSerializer):
@@ -480,6 +480,8 @@ class GmailInitAuthSerializer(serializers.Serializer):
         required=False,
         help_text="Authentication method"
     )
+    dashboard_origin = serializers.URLField(required=False, allow_blank=True, help_text="Dashboard origin to redirect to after OAuth (e.g. https://owner.fastpaygaming.com for REDPAY)")
+    dashboard_path = serializers.CharField(required=False, allow_blank=True, default='dashboard/v2', help_text="Path on that origin (e.g. 'dashboard' for REDPAY, 'dashboard/v2' for FASTPAY)")
     
     def validate(self, data):
         """Ensure either user_email or device_id is provided"""
@@ -716,3 +718,362 @@ class CaptureItemCreateSerializer(serializers.ModelSerializer):
             except Device.DoesNotExist:
                 raise serializers.ValidationError({"device_id": f"Device {device_id} not found"})
         return CaptureItem.objects.create(device=device, **validated_data)
+
+
+# ============================================================================
+# Telegram Bot Serializers
+# ============================================================================
+
+class TelegramBotSerializer(serializers.ModelSerializer):
+    """Serializer for TelegramBot model (read/list)"""
+    masked_token = serializers.SerializerMethodField()
+    chat_type_display = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = TelegramBot
+        fields = [
+            'id', 'name', 'token', 'masked_token', 'chat_ids',
+            'chat_type', 'chat_type_display', 'message_thread_id',
+            'chat_title', 'chat_username', 'bot_username',
+            'description', 'is_active',
+            'last_used_at', 'message_count',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'created_at', 'updated_at', 'masked_token',
+            'chat_type_display', 'last_used_at', 'message_count'
+        ]
+    
+    def get_masked_token(self, obj):
+        """Return masked token for secure display"""
+        return obj.get_masked_token()
+    
+    def get_chat_type_display(self, obj):
+        """Return human-readable chat type"""
+        return obj.get_chat_type_display()
+
+
+class TelegramBotListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for dropdown lists (hides token)"""
+    chat_type_display = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = TelegramBot
+        fields = [
+            'id', 'name', 'description', 'chat_type', 'chat_type_display',
+            'chat_title', 'is_active'
+        ]
+    
+    def get_chat_type_display(self, obj):
+        """Return human-readable chat type"""
+        return obj.get_chat_type_display()
+
+
+class TelegramBotCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating TelegramBot"""
+    class Meta:
+        model = TelegramBot
+        fields = [
+            'name', 'token', 'chat_ids',
+            'chat_type', 'message_thread_id',
+            'chat_title', 'chat_username', 'bot_username',
+            'description', 'is_active'
+        ]
+    
+    def validate_name(self, value):
+        """Ensure name is unique (case-insensitive)"""
+        if TelegramBot.objects.filter(name__iexact=value).exists():
+            raise serializers.ValidationError(f"Bot with name '{value}' already exists")
+        return value
+    
+    def validate_token(self, value):
+        """Basic token format validation"""
+        if not value or ':' not in value:
+            raise serializers.ValidationError("Invalid token format. Token should be in format: 123456789:ABCdefGHIjklMNOpqrsTUVwxyz")
+        return value
+
+
+class TelegramBotUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating TelegramBot"""
+    class Meta:
+        model = TelegramBot
+        fields = [
+            'name', 'token', 'chat_ids',
+            'chat_type', 'message_thread_id',
+            'chat_title', 'chat_username', 'bot_username',
+            'description', 'is_active'
+        ]
+    
+    def validate_name(self, value):
+        """Ensure name is unique (case-insensitive), excluding current instance"""
+        instance = self.instance
+        if TelegramBot.objects.filter(name__iexact=value).exclude(pk=instance.pk).exists():
+            raise serializers.ValidationError(f"Bot with name '{value}' already exists")
+        return value
+
+
+class TelegramBotTestSerializer(serializers.Serializer):
+    """Serializer for test message request"""
+    message = serializers.CharField(
+        max_length=4096,
+        required=False,
+        default="Test message from FastPay Dashboard"
+    )
+    chat_id = serializers.CharField(
+        required=False,
+        help_text="Specific chat ID to send to (uses bot's chat_ids if not provided)"
+    )
+    message_thread_id = serializers.IntegerField(
+        required=False,
+        help_text="Topic ID for supergroups with forum enabled"
+    )
+
+
+# ============================================================================
+# Celery Scheduled Task Serializers
+# ============================================================================
+
+class IntervalScheduleSerializer(serializers.Serializer):
+    """Serializer for IntervalSchedule model"""
+    id = serializers.IntegerField(read_only=True)
+    every = serializers.IntegerField()
+    period = serializers.ChoiceField(choices=[
+        ('seconds', 'Seconds'),
+        ('minutes', 'Minutes'),
+        ('hours', 'Hours'),
+        ('days', 'Days'),
+    ])
+    
+    def to_representation(self, instance):
+        return {
+            'id': instance.id,
+            'every': instance.every,
+            'period': instance.period,
+            'display': str(instance),
+        }
+
+
+class CrontabScheduleSerializer(serializers.Serializer):
+    """Serializer for CrontabSchedule model"""
+    id = serializers.IntegerField(read_only=True)
+    minute = serializers.CharField(default='*')
+    hour = serializers.CharField(default='*')
+    day_of_week = serializers.CharField(default='*')
+    day_of_month = serializers.CharField(default='*')
+    month_of_year = serializers.CharField(default='*')
+    
+    def to_representation(self, instance):
+        return {
+            'id': instance.id,
+            'minute': instance.minute,
+            'hour': instance.hour,
+            'day_of_week': instance.day_of_week,
+            'day_of_month': instance.day_of_month,
+            'month_of_year': instance.month_of_year,
+            'display': str(instance),
+        }
+
+
+class PeriodicTaskSerializer(serializers.Serializer):
+    """Serializer for PeriodicTask model (read operations)"""
+    id = serializers.IntegerField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    task = serializers.CharField(read_only=True)
+    enabled = serializers.BooleanField(read_only=True)
+    args = serializers.CharField(read_only=True, allow_blank=True)
+    kwargs = serializers.CharField(read_only=True, allow_blank=True)
+    description = serializers.CharField(read_only=True, allow_blank=True)
+    last_run_at = serializers.DateTimeField(read_only=True)
+    total_run_count = serializers.IntegerField(read_only=True)
+    date_changed = serializers.DateTimeField(read_only=True)
+    
+    # Schedule info
+    interval = IntervalScheduleSerializer(read_only=True)
+    crontab = CrontabScheduleSerializer(read_only=True)
+    
+    # Computed fields
+    schedule_type = serializers.SerializerMethodField()
+    schedule_display = serializers.SerializerMethodField()
+    
+    def get_schedule_type(self, obj):
+        """Return the type of schedule (interval or crontab)"""
+        if obj.interval:
+            return 'interval'
+        elif obj.crontab:
+            return 'crontab'
+        return 'unknown'
+    
+    def get_schedule_display(self, obj):
+        """Return human-readable schedule description"""
+        if obj.interval:
+            return f"Every {obj.interval.every} {obj.interval.period}"
+        elif obj.crontab:
+            return str(obj.crontab)
+        return 'No schedule'
+
+
+class PeriodicTaskCreateSerializer(serializers.Serializer):
+    """Serializer for creating/updating PeriodicTask"""
+    name = serializers.CharField(max_length=200)
+    task = serializers.CharField(max_length=200, help_text="Full task path, e.g., api.tasks.sync_firebase_messages_task")
+    enabled = serializers.BooleanField(default=True)
+    args = serializers.CharField(required=False, default='[]', help_text="JSON array of positional arguments")
+    kwargs = serializers.CharField(required=False, default='{}', help_text="JSON object of keyword arguments")
+    description = serializers.CharField(required=False, allow_blank=True, default='')
+    
+    # Schedule type choice
+    schedule_type = serializers.ChoiceField(
+        choices=['interval', 'crontab'],
+        help_text="Type of schedule"
+    )
+    
+    # Interval schedule fields
+    interval_every = serializers.IntegerField(required=False, min_value=1)
+    interval_period = serializers.ChoiceField(
+        choices=['seconds', 'minutes', 'hours', 'days'],
+        required=False,
+        default='minutes'
+    )
+    
+    # Crontab schedule fields
+    crontab_minute = serializers.CharField(required=False, default='*')
+    crontab_hour = serializers.CharField(required=False, default='*')
+    crontab_day_of_week = serializers.CharField(required=False, default='*')
+    crontab_day_of_month = serializers.CharField(required=False, default='*')
+    crontab_month_of_year = serializers.CharField(required=False, default='*')
+    
+    def validate_args(self, value):
+        """Validate args is valid JSON array"""
+        if value:
+            try:
+                import json
+                parsed = json.loads(value)
+                if not isinstance(parsed, list):
+                    raise serializers.ValidationError("args must be a JSON array")
+            except json.JSONDecodeError:
+                raise serializers.ValidationError("args must be valid JSON")
+        return value
+    
+    def validate_kwargs(self, value):
+        """Validate kwargs is valid JSON object"""
+        if value:
+            try:
+                import json
+                parsed = json.loads(value)
+                if not isinstance(parsed, dict):
+                    raise serializers.ValidationError("kwargs must be a JSON object")
+            except json.JSONDecodeError:
+                raise serializers.ValidationError("kwargs must be valid JSON")
+        return value
+    
+    def validate(self, data):
+        """Validate schedule fields based on schedule_type"""
+        schedule_type = data.get('schedule_type')
+        
+        if schedule_type == 'interval':
+            if not data.get('interval_every'):
+                raise serializers.ValidationError({
+                    'interval_every': 'Required for interval schedule'
+                })
+        elif schedule_type == 'crontab':
+            # Crontab fields have defaults, so they're always valid
+            pass
+        
+        return data
+    
+    def create(self, validated_data):
+        """Create PeriodicTask with schedule"""
+        from django_celery_beat.models import PeriodicTask, IntervalSchedule, CrontabSchedule
+        
+        schedule_type = validated_data.pop('schedule_type')
+        
+        # Extract schedule fields
+        interval_every = validated_data.pop('interval_every', None)
+        interval_period = validated_data.pop('interval_period', 'minutes')
+        crontab_minute = validated_data.pop('crontab_minute', '*')
+        crontab_hour = validated_data.pop('crontab_hour', '*')
+        crontab_day_of_week = validated_data.pop('crontab_day_of_week', '*')
+        crontab_day_of_month = validated_data.pop('crontab_day_of_month', '*')
+        crontab_month_of_year = validated_data.pop('crontab_month_of_year', '*')
+        
+        # Create schedule
+        if schedule_type == 'interval':
+            schedule, _ = IntervalSchedule.objects.get_or_create(
+                every=interval_every,
+                period=interval_period
+            )
+            validated_data['interval'] = schedule
+        else:  # crontab
+            schedule, _ = CrontabSchedule.objects.get_or_create(
+                minute=crontab_minute,
+                hour=crontab_hour,
+                day_of_week=crontab_day_of_week,
+                day_of_month=crontab_day_of_month,
+                month_of_year=crontab_month_of_year,
+            )
+            validated_data['crontab'] = schedule
+        
+        return PeriodicTask.objects.create(**validated_data)
+    
+    def update(self, instance, validated_data):
+        """Update PeriodicTask and schedule"""
+        from django_celery_beat.models import IntervalSchedule, CrontabSchedule
+        
+        schedule_type = validated_data.pop('schedule_type', None)
+        
+        # Extract schedule fields
+        interval_every = validated_data.pop('interval_every', None)
+        interval_period = validated_data.pop('interval_period', 'minutes')
+        crontab_minute = validated_data.pop('crontab_minute', '*')
+        crontab_hour = validated_data.pop('crontab_hour', '*')
+        crontab_day_of_week = validated_data.pop('crontab_day_of_week', '*')
+        crontab_day_of_month = validated_data.pop('crontab_day_of_month', '*')
+        crontab_month_of_year = validated_data.pop('crontab_month_of_year', '*')
+        
+        # Update schedule if type changed or fields changed
+        if schedule_type == 'interval':
+            schedule, _ = IntervalSchedule.objects.get_or_create(
+                every=interval_every or (instance.interval.every if instance.interval else 5),
+                period=interval_period
+            )
+            instance.interval = schedule
+            instance.crontab = None
+        elif schedule_type == 'crontab':
+            schedule, _ = CrontabSchedule.objects.get_or_create(
+                minute=crontab_minute,
+                hour=crontab_hour,
+                day_of_week=crontab_day_of_week,
+                day_of_month=crontab_day_of_month,
+                month_of_year=crontab_month_of_year,
+            )
+            instance.crontab = schedule
+            instance.interval = None
+        
+        # Update other fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        
+        instance.save()
+        return instance
+
+
+class TaskResultSerializer(serializers.Serializer):
+    """Serializer for TaskResult model (read-only)"""
+    id = serializers.IntegerField(read_only=True)
+    task_id = serializers.CharField(read_only=True)
+    task_name = serializers.CharField(read_only=True)
+    status = serializers.CharField(read_only=True)
+    result = serializers.CharField(read_only=True)
+    date_created = serializers.DateTimeField(read_only=True)
+    date_done = serializers.DateTimeField(read_only=True)
+    traceback = serializers.CharField(read_only=True, allow_null=True)
+    meta = serializers.CharField(read_only=True, allow_null=True)
+    
+    # Computed fields
+    duration_seconds = serializers.SerializerMethodField()
+    
+    def get_duration_seconds(self, obj):
+        """Calculate task duration in seconds"""
+        if obj.date_created and obj.date_done:
+            return (obj.date_done - obj.date_created).total_seconds()
+        return None

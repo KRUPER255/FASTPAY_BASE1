@@ -1,11 +1,12 @@
 #!/bin/bash
 
 # Promote code from staging directory to production directory
+# Staging directory name: FASTPAY_BASE (path: /root/Desktop/FASTPAY_BASE). Production: /opt/FASTPAY
 # Usage: ./promote-from-staging.sh [--dry-run] [--no-delete]
 
 set -euo pipefail
 
-STAGING_DIR="${STAGING_DIR:-/opt/FASTPAY_BASE}"
+STAGING_DIR="${STAGING_DIR:-/root/Desktop/FASTPAY_BASE}"
 PROD_DIR="${PROD_DIR:-/opt/FASTPAY}"
 DRY_RUN=false
 DELETE_FLAG="--delete"

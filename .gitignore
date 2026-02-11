@@ -15,3 +15,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Health monitor (secrets + state)
+health-monitor/health-monitor.env
+health-monitor/.health-state

@@ -32,6 +32,8 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
     SECURE_SSL_REDIRECT = os.environ.get('USE_HTTPS', 'False') == 'True'
+    # Exempt /health/ so Docker/load balancer healthchecks get 200 over HTTP
+    SECURE_REDIRECT_EXEMPT = [r'^health/']  # path matched without leading slash
     SESSION_COOKIE_SECURE = os.environ.get('USE_HTTPS', 'False') == 'True'
     CSRF_COOKIE_SECURE = os.environ.get('USE_HTTPS', 'False') == 'True'
 
@@ -46,6 +48,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
+    'django_celery_beat',
+    'django_celery_results',
     'api',
 ]
 
@@ -182,6 +186,7 @@ if not CORS_ALLOW_ALL_ORIGINS:
         'https://fastpaygaming.com',
         'https://www.fastpaygaming.com',
         'https://api.fastpaygaming.com',
+        'https://owner.fastpaygaming.com',
     ]
     CORS_ALLOWED_ORIGINS = env_origins if env_origins else default_origins
 
@@ -191,6 +196,7 @@ if not CSRF_TRUSTED_ORIGINS:
         'https://fastpaygaming.com',
         'https://www.fastpaygaming.com',
         'https://api.fastpaygaming.com',
+        'https://owner.fastpaygaming.com',
     ]
 
 # Email Configuration
@@ -214,3 +220,29 @@ SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 # Site URL for email links
 SITE_URL = os.environ.get('SITE_URL', 'http://localhost:8000' if DEBUG else 'https://fastpay.com')
+
+# =============================================================================
+# Celery Configuration
+# =============================================================================
+CELERY_BROKER_URL = os.environ.get('REDIS_URL', 'redis://redis:6379/0')
+CELERY_RESULT_BACKEND = 'django-db'
+CELERY_CACHE_BACKEND = 'default'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes max per task
+CELERY_RESULT_EXPIRES = 60 * 60 * 24 * 7  # 7 days
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+
+# Task-specific settings
+CELERY_TASK_ROUTES = {
+    'api.tasks.send_telegram_*': {'queue': 'telegram'},
+    'api.tasks.sync_*': {'queue': 'sync'},
+    'api.tasks.cleanup_*': {'queue': 'maintenance'},
+}
+
+# Task retry settings
+CELERY_TASK_ACKS_LATE = True
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1

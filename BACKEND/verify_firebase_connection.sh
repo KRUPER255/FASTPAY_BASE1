@@ -1,13 +1,33 @@
 #!/bin/bash
 
 # Firebase Connection Verification Script
-# This script verifies that APK, Dashboard, and Django Backend are all connected to the same Firebase project
+# Verifies APK, Dashboard, and Django Backend use the same Firebase project.
+# Set BASE_DIR to repo root (e.g. /root/Desktop/FASTPAY_BASE or /opt/FASTPAY). Default: parent of BACKEND.
 
 set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BASE_DIR="${BASE_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+DASHBOARD_ENV="$BASE_DIR/DASHBOARD/.env.production"
+BACKEND_ENV="$BASE_DIR/BACKEND/.env.production"
+
+# Docker: prefer "docker compose" (v2) else "docker-compose"
+if docker compose version &>/dev/null; then
+    DOCKER_COMPOSE="docker compose"
+else
+    DOCKER_COMPOSE="docker-compose"
+fi
+# Staging: use staging compose when BASE_DIR looks like FASTPAY_BASE
+if [[ "$BASE_DIR" == *"FASTPAY_BASE"* ]] && [[ -f "$BASE_DIR/BACKEND/docker-compose.staging.yml" ]]; then
+    COMPOSE_FILE="-f $BASE_DIR/BACKEND/docker-compose.staging.yml"
+else
+    COMPOSE_FILE="-f $BASE_DIR/BACKEND/docker-compose.yml"
+fi
 
 echo "========================================="
 echo "Firebase Connection Verification"
 echo "========================================="
+echo "BASE_DIR=$BASE_DIR"
 echo ""
 
 # Colors
@@ -21,7 +41,16 @@ ALL_CONNECTED=true
 
 # 1. Check APK Firebase Configuration
 echo "1. Checking Android APK Firebase Configuration..."
-APK_CONFIG="/opt/FASTPAY/APK/app/google-services.json"
+APK_CONFIG=""
+for candidate in "$BASE_DIR/FASTPAY_APK/FASTPAY_BASE/app/google-services.json" "$BASE_DIR/APK/app/google-services.json"; do
+    if [ -f "$candidate" ]; then
+        APK_CONFIG="$candidate"
+        break
+    fi
+done
+if [ -z "$APK_CONFIG" ]; then
+    APK_CONFIG="/opt/FASTPAY/APK/app/google-services.json"
+fi
 if [ -f "$APK_CONFIG" ]; then
     APK_PROJECT=$(grep -o '"project_id": "[^"]*"' "$APK_CONFIG" | cut -d'"' -f4)
     APK_DB_URL=$(grep -o '"firebase_url": "[^"]*"' "$APK_CONFIG" | cut -d'"' -f4)
@@ -40,7 +69,6 @@ echo ""
 
 # 2. Check Dashboard Firebase Configuration
 echo "2. Checking Dashboard Firebase Configuration..."
-DASHBOARD_ENV="/opt/FASTPAY/DASHBOARD/.env.production"
 if [ -f "$DASHBOARD_ENV" ]; then
     DASHBOARD_CONFIG=$(grep "VITE_FIREBASE_CONFIG" "$DASHBOARD_ENV" | cut -d'=' -f2-)
     if [ -n "$DASHBOARD_CONFIG" ]; then
@@ -114,13 +142,13 @@ echo ""
 
 # 5. Test Django Backend Firebase Connection
 echo "5. Testing Django Backend Firebase Connection..."
-cd /opt/FASTPAY/BACKEND
+cd "$BASE_DIR/BACKEND"
 
 # Check if Docker container is running
-if docker-compose ps web | grep -q "Up"; then
+if $DOCKER_COMPOSE -f "$COMPOSE_FILE" ps web 2>/dev/null | grep -q "Up"; then
     echo "   Checking environment variables in container..."
-    DB_URL=$(docker-compose exec -T web env | grep "^FIREBASE_DATABASE_URL=" | cut -d'=' -f2 || echo "")
-    CREDS=$(docker-compose exec -T web env | grep "^FIREBASE_CREDENTIALS_PATH=" | cut -d'=' -f2 || echo "")
+    DB_URL=$($DOCKER_COMPOSE $COMPOSE_FILE exec -T web env 2>/dev/null | grep "^FIREBASE_DATABASE_URL=" | cut -d'=' -f2 || echo "")
+    CREDS=$($DOCKER_COMPOSE $COMPOSE_FILE exec -T web env 2>/dev/null | grep "^FIREBASE_CREDENTIALS_PATH=" | cut -d'=' -f2 || echo "")
     
     if [ -n "$DB_URL" ]; then
         echo -e "   ${GREEN}✓${NC} FIREBASE_DATABASE_URL is set in container"
@@ -135,7 +163,7 @@ if docker-compose ps web | grep -q "Up"; then
     fi
     
     echo "   Testing Firebase initialization..."
-    TEST_RESULT=$(docker-compose exec -T web python manage.py shell << 'PYEOF'
+    TEST_RESULT=$($DOCKER_COMPOSE -f "$COMPOSE_FILE" exec -T web python manage.py shell << 'PYEOF'
 import os
 from api.utils import initialize_firebase
 try:
@@ -155,7 +183,7 @@ PYEOF
     fi
 else
     echo -e "   ${YELLOW}⚠${NC} Docker container 'web' is not running"
-    echo "   Start it with: docker-compose up -d web"
+    echo "   Start it with: cd $BASE_DIR/BACKEND && $DOCKER_COMPOSE -f $COMPOSE_FILE up -d web"
 fi
 echo ""
 

@@ -12,16 +12,24 @@ Two environments are supported: **production** and **staging**. Each environment
 
 - Docker and Docker Compose (v2 or docker-compose)
 - Node.js + npm (for dashboard build on the server)
-- Repo present at `/opt/FASTPAY`
+- Repo present at `/opt/FASTPAY` (production)
+- Staging directory name: **FASTPAY_BASE** at `/root/Desktop/FASTPAY_BASE` (not FASTPAY-staging)
 
 ---
 
 ## One-time setup
 
+Production:
 ```bash
 cd /opt/FASTPAY
 chmod +x deploy-all.sh
 chmod +x BACKEND/deploy.sh
+chmod +x promote-from-staging.sh
+```
+
+Staging (directory **FASTPAY_BASE**):
+```bash
+cd /root/Desktop/FASTPAY_BASE
 chmod +x BACKEND/deploy-staging.sh
 chmod +x promote-from-staging.sh
 ```
@@ -32,14 +40,18 @@ chmod +x promote-from-staging.sh
 
 ### Backend env files
 
-- Production: `BACKEND/.env.production`
-- Staging: `BACKEND/.env.staging` (in staging directory)
+- Production: `BACKEND/.env.production` (in `/opt/FASTPAY`)
+- Staging: `BACKEND/.env.staging` (in `/root/Desktop/FASTPAY_BASE`)
 
-Start from the template:
-
+Production:
 ```bash
 cd /opt/FASTPAY/BACKEND
 cp .env.example .env.production
+```
+
+Staging:
+```bash
+cd /root/Desktop/FASTPAY_BASE/BACKEND
 cp .env.example .env.staging
 ```
 
@@ -48,14 +60,18 @@ Update `ALLOWED_HOSTS`, database credentials, and any API keys for each environm
 ### Dashboard env files
 
 Vite reads environment variables per mode:
-- Production: `DASHBOARD/.env.production`
-- Staging: `DASHBOARD/.env.staging` (in staging directory)
+- Production: `DASHBOARD/.env.production` (in `/opt/FASTPAY`)
+- Staging: `DASHBOARD/.env.staging` (in `/root/Desktop/FASTPAY_BASE`)
 
-Start from the template:
-
+Production:
 ```bash
 cd /opt/FASTPAY/DASHBOARD
 cp .env.example .env.production
+```
+
+Staging:
+```bash
+cd /root/Desktop/FASTPAY_BASE/DASHBOARD
 cp .env.example .env.staging
 ```
 
@@ -76,7 +92,7 @@ VITE_BASE_PATH=/ npm run build -- --mode production
 ### Staging build (served at /test)
 
 ```bash
-cd /opt/FASTPAY_BASE/DASHBOARD
+cd /root/Desktop/FASTPAY_BASE/DASHBOARD
 npm install
 VITE_BASE_PATH=/test/ npm run build -- --mode staging
 ```
@@ -97,11 +113,35 @@ ENV_FILE=.env.production ./deploy.sh production --no-input
 ### Staging
 
 ```bash
-cd /opt/FASTPAY_BASE/BACKEND
-./deploy-staging.sh --no-input --skip-tests
+cd /root/Desktop/FASTPAY_BASE/BACKEND
+./deploy.sh staging --no-input --skip-tests
 ```
 
 `deploy.sh` handles migrations, collectstatic, and starts containers.
+
+### Backend deploy options (all 6)
+
+| Option | Description |
+|--------|-------------|
+| `--no-input` | Skip superuser prompt and interactive prompts |
+| `--skip-tests` | Skip Django test suite during deploy |
+| `--skip-pull` | Do not run `git pull` (deploy current tree only) |
+| `--no-rebuild` | Build Docker images using cache (faster) |
+| `--skip-nginx-reload` | Skip nginx config validation/reload |
+| `--test-pattern PATTERN` | Run only tests matching PATTERN (e.g. `api.tests.test_views`) |
+
+Examples:
+
+```bash
+# Full deploy (pull + rebuild)
+./deploy.sh staging --no-input
+
+# Quick deploy: no git pull, use Docker cache
+./deploy.sh staging --no-input --skip-pull --no-rebuild
+
+# Skip tests and nginx reload
+./deploy.sh staging --no-input --skip-tests --skip-nginx-reload
+```
 
 ---
 
@@ -118,7 +158,9 @@ cd /opt/FASTPAY
 
 ### Staging is deployed separately
 
-Staging runs from `/opt/FASTPAY_BASE` and is served at `/test` on the same domain.
+Staging uses the **FASTPAY_BASE** directory at `/root/Desktop/FASTPAY_BASE` (not FASTPAY-staging) and is served at `/test` on the same domain.
+
+**Staging deploy at public URL (tested):** From repo root run `./deploy-all.sh --no-input` (runs dashboard build, backend deploy with tests, and verification of public URLs). On the staging server, run `sudo ./BACKEND/nginx/apply-staging-on-host.sh` once so host nginx serves https://staging.fastpaygaming.com/ and https://api-staging.fastpaygaming.com/. Full steps: see [BACKEND/nginx/STAGING_NGINX.md](BACKEND/nginx/STAGING_NGINX.md) section "Staging deploy at public URL (tested)".
 
 ---
 
@@ -175,6 +217,22 @@ Preview changes first:
 ```
 
 The promotion script excludes env files, runtime data, and build artifacts.
+
+---
+
+## Health monitor (optional)
+
+To get Telegram alerts when dashboard or backend goes down:
+
+```bash
+cd /root/Desktop/FASTPAY_BASE/health-monitor
+cp health-monitor.env.example health-monitor.env
+# Edit: add TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_IDS
+chmod +x health-monitor.sh
+# Add to cron: */5 * * * * /root/Desktop/FASTPAY_BASE/health-monitor/health-monitor.sh
+```
+
+See `health-monitor/README.md` for full setup and systemd option.
 
 ---
 

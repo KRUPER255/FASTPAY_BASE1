@@ -53,9 +53,9 @@ USER django
 # Expose port
 EXPOSE 8000
 
-# Health check - use admin endpoint which is more reliable
+# Health check - use /health/ (no redirect; /admin/ 302→HTTPS times out in container)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/admin/', timeout=5)" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/', timeout=5)" || exit 1
 
 # Run gunicorn
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "4", "--threads", "2", "--timeout", "120", "fastpay_be.wsgi:application"]

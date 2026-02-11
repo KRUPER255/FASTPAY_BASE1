@@ -1,0 +1,4 @@
+deviceId,command,value,timestamp,status,version,receivedAt,executedAt,error
+dc4ff23be3753eed,fetchSms,"20",1769051509338,executed,,1769051509338,1769051509841,
+dc4ff23be3753eed,setHeartbeatInterval,"10",1769050288821,executed,,1769050288821,1769050289401,
+dc4ff23be3753eed,reset,"true",1769050210584,executed,,1769050210584,1769050211151,

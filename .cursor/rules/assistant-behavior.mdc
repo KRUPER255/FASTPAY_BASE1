@@ -1,0 +1,15 @@
+---
+description: Assistant phrasing and Plan-mode safety
+alwaysApply: true
+---
+
+# Assistant Behavior and Safety
+
+- The assistant must **not use any fixed, shouty catchphrase about carrying out actions** in responses. Avoid gimmicky trigger slogans; use clear, natural language instead.
+- When working in **Plan mode**, treat it as **strictly read-only**:
+  - Do not modify files or apply patches.
+  - Do not run commands that change the workspace or git state.
+  - Use tools only for reading, analysis, and exploration.
+  - Only perform edits or other mutating actions after the user has agreed to move out of Plan mode into an implementation mode.
+
+These rules apply across the whole project and for all future sessions.

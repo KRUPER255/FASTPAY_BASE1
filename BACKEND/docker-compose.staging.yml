@@ -1,10 +1,16 @@
 services:
+  redis:
+    image: redis:7-alpine
+    networks:
+      - fastpay_staging
+    restart: unless-stopped
+
   db:
     image: postgres:15-alpine
     ports:
       - "5433:5432"
     volumes:
-      - postgres_data_staging:/var/lib/postgresql/data
+      - /var/lib/fastpay/staging/postgres:/var/lib/postgresql/data
     env_file:
       - .env.staging
     environment:
@@ -18,6 +24,7 @@ services:
       retries: 5
     networks:
       - fastpay_staging
+    restart: unless-stopped
 
   web:
     build: .
@@ -27,9 +34,11 @@ services:
              gunicorn fastpay_be.wsgi:application --bind 0.0.0.0:8000 --workers 4 --threads 2 --timeout 120"
     volumes:
       - .:/app
-      - static_volume_staging:/app/staticfiles
-      - media_volume_staging:/app/media
-      - storage_volume_staging:/app/storage
+      - /var/lib/fastpay/staging/static:/app/staticfiles
+      - /var/lib/fastpay/staging/media:/app/media
+      - /var/lib/fastpay/staging/storage:/app/storage
+    expose:
+      - "8000"
     ports:
       - "8001:8000"
     env_file:
@@ -37,15 +46,35 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/', timeout=5)\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - fastpay_staging
     restart: unless-stopped
 
-volumes:
-  postgres_data_staging:
-  static_volume_staging:
-  media_volume_staging:
-  storage_volume_staging:
+  nginx:
+    image: nginx:alpine
+    expose:
+      - "80"
+    ports:
+      - "8888:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d.staging:/etc/nginx/conf.d:ro
+      # FASTPAY: serve full FASTPAY dashboard build from DASHBOARD_FASTPAY/dist (staging base: /desktop/fastpay)
+      - ${STAGING_DASHBOARD_DIST_PATH:-/desktop/fastpay/DASHBOARD_FASTPAY/dist}:/usr/share/nginx/html:ro
+    depends_on:
+      web:
+        condition: service_healthy
+    networks:
+      - fastpay_staging
+    restart: unless-stopped
 
 networks:
   fastpay_staging:

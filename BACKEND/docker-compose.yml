@@ -17,6 +17,20 @@ services:
     networks:
       - fastpay_network
 
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fastpay_network
+    restart: unless-stopped
+
   web:
     build: .
     command: >
@@ -35,6 +49,47 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/', timeout=5)\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - fastpay_network
+    restart: unless-stopped
+
+  celery_worker:
+    build: .
+    command: celery -A fastpay_be worker -l INFO --concurrency=4 -Q celery,telegram,sync,maintenance
+    volumes:
+      - .:/app
+      - storage_volume:/app/storage
+    env_file:
+      - ${ENV_FILE:-.env.production}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - fastpay_network
+    restart: unless-stopped
+
+  celery_beat:
+    build: .
+    command: celery -A fastpay_be beat -l INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    volumes:
+      - .:/app
+    env_file:
+      - ${ENV_FILE:-.env.production}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - fastpay_network
     restart: unless-stopped
@@ -51,11 +106,13 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/html:/usr/share/nginx/html/api:ro
       - ./nginx/acme:/var/www/certbot:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
       - static_volume:/app/staticfiles:ro
       - media_volume:/app/media:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
-      - ${DASHBOARD_DIST_PATH:-/opt/FASTPAY/DASHBOARD/dist}:/usr/share/nginx/html/dashboard:ro
-      - ${STAGING_DASHBOARD_DIST_PATH:-/opt/FASTPAY_BASE/DASHBOARD/dist}:/usr/share/nginx/html/test:ro
+      # Production base: /var/www/fastpay (see docs/VPS_DEPLOY_STRUCTURE.md)
+      - ${DASHBOARD_DIST_PATH:-/var/www/fastpay/DASHBOARD_FASTPAY/dist}:/usr/share/nginx/html/dashboard:ro
+      - ${STAGING_DASHBOARD_DIST_PATH:-/var/www/fastpay/DASHBOARD_FASTPAY/dist}:/usr/share/nginx/html/test:ro
     depends_on:
       - web
     networks:
@@ -64,6 +121,7 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
   static_volume:
   media_volume:
   storage_volume:

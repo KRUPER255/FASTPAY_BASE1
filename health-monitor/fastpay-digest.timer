@@ -1,0 +1,10 @@
+[Unit]
+Description=Run FastPay 15-minute digest every 15 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

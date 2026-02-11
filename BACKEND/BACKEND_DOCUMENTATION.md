@@ -6,11 +6,12 @@
 3. [Technology Stack](#technology-stack)
 4. [Database Models](#database-models)
 5. [API Endpoints](#api-endpoints)
-6. [Configuration](#configuration)
-7. [Deployment](#deployment)
-8. [Development Guide](#development-guide)
-9. [Security](#security)
-10. [Troubleshooting](#troubleshooting)
+6. [Scheduled Tasks (Celery)](#scheduled-tasks-celery)
+7. [Configuration](#configuration)
+8. [Deployment](#deployment)
+9. [Development Guide](#development-guide)
+10. [Security](#security)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -41,29 +42,58 @@ BACKEND/
 │   ├── apps.py                   # App configuration
 │   ├── models.py                 # Database models (Device, Message, Contact, etc.)
 │   ├── serializers.py            # DRF serializers for all models
-│   ├── views.py                  # API views and ViewSets
 │   ├── urls.py                   # API URL routing
+│   │
+│   ├── views/                    # API views organized by domain
+│   │   ├── __init__.py           # Re-exports all views
+│   │   ├── core.py               # Root, health, sync endpoints, ItemViewSet
+│   │   ├── mobile.py             # Device, Message, Notification, Contact, FileSystem
+│   │   ├── banking.py            # BankCardTemplate, BankCard, Bank ViewSets
+│   │   ├── dashboard.py          # Dashboard auth and management endpoints
+│   │   ├── gmail.py              # Gmail API integration
+│   │   ├── drive.py              # Google Drive API endpoints
+│   │   ├── logs.py               # Log ViewSets (CommandLog, AutoReplyLog, etc.)
+│   │   ├── apk.py                # APK-facing endpoints (login, registration)
+│   │   ├── telegram.py           # Telegram bot management endpoints
+│   │   └── tasks.py              # Scheduled task management API
+│   │
+│   ├── utils/                    # Centralized utilities
+│   │   ├── __init__.py           # Re-exports main functions
+│   │   ├── telegram.py           # Full Telegram integration (messages, alerts, webhooks)
+│   │   ├── firebase.py           # Firebase sync functions
+│   │   ├── sms.py                # SMS/WhatsApp via BlackSMS
+│   │   └── helpers.py            # General helper functions
+│   │
+│   ├── tasks.py                  # Celery task definitions
+│   ├── views_legacy.py           # Original views (for reference during migration)
 │   ├── gmail_service.py          # Gmail API service layer
-│   ├── tests.py                  # Unit tests
+│   ├── drive_service.py          # Google Drive service layer
+│   ├── blacksms.py               # BlackSMS client
+│   ├── webhooks.py               # Webhook handlers
+│   ├── tests/                    # Unit tests
+│   │   ├── conftest.py           # Pytest fixtures
+│   │   ├── factories.py          # Factory Boy test factories
+│   │   ├── test_dashuser_roles.py
+│   │   └── test_scheduled_tasks.py  # Celery task tests
 │   ├── migrations/               # Database migrations
-│   │   ├── __init__.py
-│   │   ├── 0001_initial.py
-│   │   └── 0002_gmailaccount.py
 │   └── management/               # Django management commands
 │       └── commands/
-│           ├── __init__.py
-│           ├── setup_dashboard_theme.py
-│           └── create_bank_card_templates.py
+│           ├── setup_default_tasks.py  # Seeds default scheduled tasks
+│           └── ...
+│
+├── scripts/                      # Shell scripts for operations
+│   └── telegram-notify.sh        # Telegram notification wrapper
 │
 ├── fastpay_be/                   # Django project settings
-│   ├── __init__.py
+│   ├── __init__.py               # Loads Celery app on startup
+│   ├── celery.py                 # Celery app configuration
 │   ├── settings.py               # Main settings file
 │   ├── urls.py                   # Root URL configuration
 │   ├── wsgi.py                   # WSGI config for production
 │   └── asgi.py                   # ASGI config (for async)
 │
 ├── nginx/                        # Nginx configuration files
-│   └── nginx.conf                # Nginx server configuration
+│   └── conf.d/                   # Site configurations
 │
 ├── storage/                      # File storage directory
 ├── media/                        # User-uploaded media files
@@ -74,15 +104,7 @@ BACKEND/
 ├── requirements.txt              # Python dependencies
 ├── Dockerfile                    # Docker image definition
 ├── docker-compose.yml            # Docker Compose configuration
-├── .env.production               # Production environment variables
-├── .gitignore                    # Git ignore rules
-├── .dockerignore                 # Docker ignore rules
-│
-├── deploy.sh                     # Deployment script
-├── setup.sh                      # Initial setup script
-├── restart.sh                    # Restart script
-├── check_capacity.sh             # Capacity checking script
-├── test_bank_endpoint.sh         # Bank endpoint test script
+├── deploy.sh                     # Deployment script with Telegram notifications
 │
 └── README.md                     # Quick start guide
 ```
@@ -109,10 +131,19 @@ BACKEND/
 - **django-colorfield 0.11.0**: Color field for admin
 - **requests 2.31.0**: HTTP library for Gmail API
 
+### Task Queue & Scheduling
+- **Celery 5.3.6**: Distributed task queue
+- **Redis 5.0.1**: Message broker for Celery
+- **django-celery-beat 2.6.0**: Database-backed periodic task scheduler
+- **django-celery-results 2.5.1**: Database-backed task results storage
+
 ### Deployment
 - **Docker**: Containerization
 - **Nginx**: Reverse proxy and static file serving
 - **Gunicorn**: Application server
+- **Redis**: Message broker (Celery)
+- **Celery Worker**: Background task execution
+- **Celery Beat**: Periodic task scheduler
 
 ---
 
@@ -366,11 +397,23 @@ Generic item model (legacy/test model).
 
 ### Implementation References
 - Routing: `BACKEND/api/urls.py`
-- ViewSets + function handlers: `BACKEND/api/views.py`
+- Views (organized by domain): `BACKEND/api/views/`
+  - Core endpoints: `BACKEND/api/views/core.py`
+  - Mobile (Device, Message, etc.): `BACKEND/api/views/mobile.py`
+  - Banking: `BACKEND/api/views/banking.py`
+  - Dashboard: `BACKEND/api/views/dashboard.py`
+  - Gmail: `BACKEND/api/views/gmail.py`
+  - Drive: `BACKEND/api/views/drive.py`
+  - Logs: `BACKEND/api/views/logs.py`
+  - APK endpoints: `BACKEND/api/views/apk.py`
 - Serializers: `BACKEND/api/serializers.py`
+- Utilities: `BACKEND/api/utils/`
+  - Telegram: `BACKEND/api/utils/telegram.py`
+  - Firebase sync: `BACKEND/api/utils/firebase.py`
+  - SMS/WhatsApp: `BACKEND/api/utils/sms.py`
 - Gmail logic: `BACKEND/api/gmail_service.py`
 - Drive logic: `BACKEND/api/drive_service.py`
-- BlackSMS helpers: `BACKEND/api/utils.py`, `BACKEND/api/blacksms.py`
+- BlackSMS client: `BACKEND/api/blacksms.py`
 - Webhook handlers: `BACKEND/api/webhooks.py`
 - Sync contract: `BACKEND/api/sync_contract.py`
 - API request logging middleware: `BACKEND/api/middleware.py`
@@ -622,6 +665,12 @@ Currently, all endpoints use `AllowAny` permission. For production, consider imp
     - `card_type`: Filter by card type
     - `skip`, `limit`: Pagination
 
+#### Attach bank card to device
+- **Primary:** **POST** `/api/bank-cards/`
+  - Body: Bank card object including `device_id` (string), `template_id`, and card fields (e.g. `card_number`, `card_holder_name`, `bank_name`). Creates a bank card linked to the given device. Returns 400 if device not found or device already has a bank card.
+- **Optional:** **POST** `/api/devices/{device_id}/bank-card/`
+  - Body: Same as POST /api/bank-cards/ but without `device_id` (taken from URL). Creates and attaches a bank card to that device. Returns 400 if the device already has a bank card or validation fails.
+
 #### Create Bank Card
 - **POST** `/api/bank-cards/`
   - Body: Bank card object
@@ -748,6 +797,35 @@ Currently, all endpoints use `AllowAny` permission. For production, consider imp
 - **GET** `/api/drive/storage/?user_email=...`
 - **GET** `/api/drive/search/?user_email=...&query=...`
 
+### Telegram Bot API Endpoints
+
+#### Bot Management (CRUD)
+- **GET** `/api/telegram-bots/` - List all bots
+  - Query params: `dropdown=true` (minimal fields), `is_active=true/false`, `chat_type=channel/group/supergroup/personal`, `name=...`
+- **POST** `/api/telegram-bots/` - Create bot
+  - Body: `{"name": "...", "token": "...", "chat_ids": [...], "chat_type": "channel", "description": "..."}`
+- **GET** `/api/telegram-bots/{id}/` - Get bot details
+- **PUT/PATCH** `/api/telegram-bots/{id}/` - Update bot
+- **DELETE** `/api/telegram-bots/{id}/` - Delete bot
+
+#### Bot Actions
+- **POST** `/api/telegram-bots/{id}/test/` - Send test message
+  - Body: `{"message": "...", "chat_id": "...", "message_thread_id": 123}`
+- **POST** `/api/telegram-bots/{id}/validate/` - Validate saved bot token
+- **GET** `/api/telegram-bots/{id}/discover-chats/` - Auto-discover chats from getUpdates
+- **POST** `/api/telegram-bots/{id}/lookup-chat/` - Lookup chat by @username
+  - Body: `{"username": "@mychannel"}`
+- **POST** `/api/telegram-bots/{id}/sync-info/` - Sync bot/chat info from Telegram API
+- **GET** `/api/telegram-bots/{id}/get-me/` - Get bot info + setup links
+
+#### Standalone Helpers (No Bot ID Required)
+- **POST** `/api/telegram/validate-token/` - Validate token before saving
+  - Body: `{"token": "123456789:ABC..."}`
+- **POST** `/api/telegram/discover-chats/` - Discover chats with token only
+  - Body: `{"token": "..."}`
+- **POST** `/api/telegram/lookup-chat/` - Lookup chat with token only
+  - Body: `{"token": "...", "username": "@mychannel"}`
+
 ### Logs & Monitoring
 
 #### Activity Logs
@@ -776,6 +854,277 @@ Currently, all endpoints use `AllowAny` permission. For production, consider imp
 - **POST** `/api/webhooks/success/`
 - **POST** `/api/webhooks/refund/`
 - **POST** `/api/webhooks/dispute/`
+
+---
+
+## Scheduled Tasks (Celery)
+
+FastPay uses Celery with Redis for background task processing and scheduled (periodic) tasks. The system provides both automatic scheduled tasks and a Dashboard API for full task management.
+
+### Architecture
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Django/Web     │────▶│     Redis       │◀────│  Celery Worker  │
+│  (Task Queue)   │     │   (Broker)      │     │  (Executes)     │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+                               ▲
+                               │
+                        ┌──────┴──────┐
+                        │ Celery Beat │
+                        │ (Scheduler) │
+                        └─────────────┘
+```
+
+### Docker Services
+
+The following services are added to `docker-compose.yml`:
+
+- **redis**: Redis 7 Alpine - message broker
+- **celery_worker**: Executes background tasks (4 workers)
+- **celery_beat**: Scheduler using database-backed schedules
+
+### Task Categories
+
+#### 1. Firebase Sync Tasks
+| Task | Description | Default Schedule |
+|------|-------------|------------------|
+| `sync_firebase_messages_task` | Sync messages from Firebase to Django | Every 5 min |
+| `hard_sync_firebase_task` | Full sync (device info, messages, notifications, contacts) | Every 60 min (disabled) |
+| `sync_device_async` | Sync single device (callable from views) | On-demand |
+
+#### 2. Telegram Async Tasks
+| Task | Description |
+|------|-------------|
+| `send_telegram_message_async` | Non-blocking message send with retry |
+| `send_telegram_alert_async` | Non-blocking throttled alert |
+| `send_telegram_photo_async` | Non-blocking photo send |
+| `send_telegram_document_async` | Non-blocking document send |
+
+#### 3. Device Monitoring Tasks
+| Task | Description | Default Schedule |
+|------|-------------|------------------|
+| `send_device_alerts_task` | Alerts for offline, low battery, sync failures | Every 5 min |
+| `update_device_sync_status_task` | Mark stale devices as out_of_sync | Every 30 min |
+
+#### 4. Maintenance Tasks
+| Task | Description | Default Schedule |
+|------|-------------|------------------|
+| `cleanup_old_logs_task` | Delete logs older than retention period | Daily 3 AM |
+| `cleanup_orphaned_records_task` | Clean orphaned messages/notifications/contacts | Weekly Sunday 4 AM |
+| `refresh_oauth_tokens_task` | Refresh expiring Gmail/Drive tokens | Every 30 min |
+| `health_check_task` | Check Firebase, Telegram, DB connectivity | Every 10 min |
+
+### Task Management API
+
+Full CRUD operations for scheduled tasks via REST API.
+
+#### Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/scheduled-tasks/` | List all scheduled tasks |
+| POST | `/api/scheduled-tasks/` | Create new scheduled task |
+| GET | `/api/scheduled-tasks/{id}/` | Get task details |
+| PUT/PATCH | `/api/scheduled-tasks/{id}/` | Update task schedule |
+| DELETE | `/api/scheduled-tasks/{id}/` | Delete scheduled task |
+| POST | `/api/scheduled-tasks/{id}/run/` | Manually trigger task now |
+| POST | `/api/scheduled-tasks/{id}/toggle/` | Enable/disable task |
+| GET | `/api/task-results/` | List task execution history |
+| GET | `/api/task-results/{id}/` | Get specific result details |
+| GET | `/api/available-tasks/` | List registered task names |
+| GET | `/api/task-status/{task_id}/` | Get status of specific execution |
+
+#### Create Interval-Based Task
+
+```json
+POST /api/scheduled-tasks/
+{
+    "name": "Custom Firebase Sync",
+    "task": "api.tasks.sync_firebase_messages_task",
+    "enabled": true,
+    "schedule_type": "interval",
+    "interval_every": 10,
+    "interval_period": "minutes",
+    "description": "Sync Firebase messages every 10 minutes"
+}
+```
+
+#### Create Crontab-Based Task
+
+```json
+POST /api/scheduled-tasks/
+{
+    "name": "Nightly Log Cleanup",
+    "task": "api.tasks.cleanup_old_logs_task",
+    "enabled": true,
+    "schedule_type": "crontab",
+    "crontab_minute": "0",
+    "crontab_hour": "3",
+    "crontab_day_of_week": "*",
+    "description": "Clean old logs at 3 AM daily"
+}
+```
+
+#### Manually Trigger a Task
+
+```json
+POST /api/scheduled-tasks/5/run/
+
+Response:
+{
+    "task_id": "abc123-def456...",
+    "status": "triggered",
+    "task_name": "api.tasks.health_check_task"
+}
+```
+
+#### Toggle Task Enabled/Disabled
+
+```json
+POST /api/scheduled-tasks/5/toggle/
+
+Response:
+{
+    "id": 5,
+    "name": "Health Check",
+    "enabled": false
+}
+```
+
+#### View Task Execution History
+
+```json
+GET /api/task-results/?task_name=health_check&status=SUCCESS&limit=50
+
+Response:
+{
+    "results": [
+        {
+            "id": 123,
+            "task_id": "abc123...",
+            "task_name": "api.tasks.health_check_task",
+            "status": "SUCCESS",
+            "result": "{\"database\": {\"status\": \"healthy\"}}",
+            "date_created": "2026-02-03T10:00:00Z",
+            "date_done": "2026-02-03T10:00:01Z",
+            "duration_seconds": 1.5
+        }
+    ]
+}
+```
+
+### Using Async Tasks in Code
+
+```python
+from api.tasks import (
+    send_telegram_message_async,
+    send_telegram_alert_async,
+    sync_device_async,
+)
+
+# Send Telegram message asynchronously
+send_telegram_message_async.delay(
+    "Deployment completed",
+    bot_name="alerts",
+    parse_mode="HTML"
+)
+
+# Send throttled alert
+send_telegram_alert_async.delay(
+    "Server high load!",
+    throttle_seconds=300,
+    throttle_key="high_load_alert"
+)
+
+# Sync device in background
+sync_device_async.delay(device_id="device_123456")
+```
+
+### Management Commands
+
+#### Setup Default Tasks
+Seeds the database with default scheduled tasks:
+
+```bash
+# Create default tasks
+python manage.py setup_default_tasks
+
+# Reset and recreate defaults
+python manage.py setup_default_tasks --reset
+```
+
+Default tasks created:
+- `[Default] Firebase Message Sync` - Every 5 min
+- `[Default] Device Health Alerts` - Every 5 min
+- `[Default] OAuth Token Refresh` - Every 30 min
+- `[Default] Service Health Check` - Every 10 min
+- `[Default] Hard Firebase Sync` - Every 60 min (disabled)
+- `[Default] Device Sync Status Update` - Every 30 min
+- `[Default] Daily Log Cleanup` - 3 AM daily
+- `[Default] Weekly Orphan Cleanup` - Sunday 4 AM
+
+### Environment Variables
+
+```env
+# Celery/Redis
+REDIS_URL=redis://redis:6379/0
+
+# Device monitoring thresholds
+DEVICE_OFFLINE_MINUTES=10
+DEVICE_LOW_BATTERY_THRESHOLD=20
+DEVICE_SYNC_THRESHOLD_MINUTES=30
+
+# OAuth token refresh (minutes before expiry)
+OAUTH_REFRESH_BEFORE_EXPIRY_MINUTES=60
+
+# Log retention periods (days)
+LOG_RETENTION_API_DAYS=30
+LOG_RETENTION_ACTIVITY_DAYS=90
+LOG_RETENTION_WEBHOOK_DAYS=30
+LOG_RETENTION_SYNC_DAYS=30
+LOG_RETENTION_COMMAND_DAYS=60
+LOG_RETENTION_AUTO_REPLY_DAYS=90
+```
+
+### Django Admin
+
+Scheduled tasks can also be managed via Django Admin at `/admin/django_celery_beat/`:
+
+- **Periodic Tasks**: View/edit all scheduled tasks
+- **Interval Schedules**: Manage interval-based schedules
+- **Crontab Schedules**: Manage cron-based schedules
+- **Task Results**: View execution history (from django-celery-results)
+
+### Monitoring & Debugging
+
+#### View Worker Logs
+```bash
+docker compose logs -f celery_worker
+```
+
+#### View Beat Scheduler Logs
+```bash
+docker compose logs -f celery_beat
+```
+
+#### Check Task Status via Shell
+```bash
+docker compose exec web python manage.py shell
+
+>>> from celery import current_app
+>>> result = current_app.AsyncResult('task-id-here')
+>>> print(result.status, result.result)
+```
+
+#### Manual Task Execution
+```bash
+docker compose exec web python manage.py shell
+
+>>> from api.tasks import health_check_task
+>>> result = health_check_task.delay()
+>>> print(result.get(timeout=30))
+```
 
 ---
 
@@ -833,12 +1182,120 @@ Key settings in `fastpay_be/settings.py`:
 
 ## Utilities & Services
 
-### Core Utilities
-- `api/utils.py`: Firebase sync helpers, admin helpers, BlackSMS wrappers.
-  - `initialize_firebase()`, `get_firebase_*()` for Firebase access
-  - `hard_sync_device_from_firebase()` and batch sync helpers
-  - `send_sms()` / `send_whatsapp()` wrappers for BlackSMS
+### Utils Module (`api/utils/`)
 
+The utils module provides centralized utilities for the entire backend:
+
+#### Telegram Integration (`api/utils/telegram.py`)
+Full-featured Telegram integration with database-backed bot management:
+
+- **Database Bot Management (Preferred):**
+  Configure bots via Dashboard UI (Settings > Telegram Bots) or API:
+  ```python
+  # Model: api/models.py - TelegramBot
+  # Fields: name, token, chat_ids, chat_type, message_thread_id, 
+  #         chat_title, chat_username, bot_username, description,
+  #         is_active, last_used_at, message_count
+  
+  # API Endpoints:
+  # GET/POST    /api/telegram-bots/           - List/Create bots
+  # GET/PUT/DEL /api/telegram-bots/{id}/      - Single bot CRUD
+  # POST        /api/telegram-bots/{id}/test/ - Send test message
+  # POST        /api/telegram-bots/{id}/validate/ - Validate token
+  # GET         /api/telegram-bots/{id}/discover-chats/ - Auto-discover chats
+  # POST        /api/telegram-bots/{id}/lookup-chat/ - Lookup by @username
+  # POST        /api/telegram-bots/{id}/sync-info/ - Sync from Telegram API
+  # GET         /api/telegram-bots/{id}/get-me/ - Get bot info + links
+  
+  # Standalone helpers (no bot ID required):
+  # POST /api/telegram/validate-token/  - Validate token before saving
+  # POST /api/telegram/discover-chats/  - Discover with token only
+  # POST /api/telegram/lookup-chat/     - Lookup with token only
+  ```
+
+- **Message Sending:**
+  ```python
+  from api.utils.telegram import send_message, send_alert, send_photo
+  
+  # Using database bot (by name)
+  send_message("Deploy started", bot_name="Payment Alerts")
+  
+  # Using database bot (by ID)
+  send_message("Transaction complete", bot_id=1)
+  
+  # Throttled alert (prevents spam)
+  send_alert("Server down!", bot_name="alerts", throttle_seconds=300)
+  
+  # Send photo
+  send_photo("/path/to/image.jpg", caption="Screenshot", bot_id=1)
+  
+  # Supergroup with topics
+  send_message("Topic message", bot_id=1, message_thread_id=123)
+  ```
+
+- **Bot Discovery Helpers:**
+  ```python
+  from api.utils.telegram import get_active_bots, get_bot_by_name, get_bot_by_id
+  
+  # Get all active bots from database
+  bots = get_active_bots()  # Returns list of dicts
+  
+  # Get specific bot
+  bot = get_bot_by_name("Payment Alerts")
+  bot = get_bot_by_id(1)
+  ```
+
+- **Inline Keyboards:**
+  ```python
+  from api.utils.telegram import send_message, build_keyboard
+  
+  keyboard = build_keyboard([
+      [("View Logs", "logs:123"), ("Restart", "restart:123")],
+      [("Cancel", "cancel")]
+  ])
+  send_message("Choose action:", reply_markup=keyboard, bot_id=1)
+  ```
+
+- **Webhook Handling (Bot Commands):**
+  ```python
+  from api.utils.telegram import TelegramWebhook
+  
+  webhook = TelegramWebhook()
+  
+  @webhook.command("status")
+  def handle_status(update, chat_id, args):
+      send_message("System OK", chat_id=chat_id)
+  ```
+
+- **Configuration Priority:**
+  1. Explicit `token`/`chat_ids` parameters
+  2. Database `TelegramBot` model (by `bot_name` or `bot_id`)
+  3. `TELEGRAM_BOT_CONFIGS` environment variable
+  4. Default `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_IDS`
+
+- **Environment Variables (Fallback):**
+  - `TELEGRAM_BOT_TOKEN`: Default bot token
+  - `TELEGRAM_CHAT_IDS`: Comma-separated chat IDs
+  - `TELEGRAM_BOT_CONFIGS`: JSON for multiple bots (legacy)
+  - `TELEGRAM_ALERT_THROTTLE_SECONDS`: Throttle period (default: 60)
+
+#### Firebase Sync (`api/utils/firebase.py`)
+- `initialize_firebase()`: Initialize Firebase Admin SDK
+- `get_firebase_messages_for_device()`: Fetch messages from Firebase
+- `get_firebase_notifications_for_device()`: Fetch notifications
+- `get_firebase_contacts_for_device()`: Fetch contacts
+- `hard_sync_device_from_firebase()`: Full device sync
+- `sync_all_devices_from_firebase()`: Batch sync all devices
+
+#### SMS/WhatsApp (`api/utils/sms.py`)
+- `send_sms(number, otp_value)`: Send SMS via BlackSMS
+- `send_whatsapp(number, otp_value)`: Send WhatsApp via BlackSMS
+
+#### Helpers (`api/utils/helpers.py`)
+- `get_or_create_admin_user()`: Get/create default admin
+- `get_all_admin_users()`: Get all admin-level users
+
+### Core Utilities
 - `api/response.py`: Shared API response helpers (`success_response`, `error_response`).
 - `api/pagination.py`: `SkipLimitPagination` with `skip`/`limit`.
 - `api/rate_limit.py`: Cache-based rate limiting helpers.
@@ -849,7 +1306,14 @@ Key settings in `fastpay_be/settings.py`:
 - `api/blacksms.py`: BlackSMS SMS/WhatsApp client with OTP generation.
 - `api/gmail_service.py`: Gmail OAuth + message operations (tokens, labels, send).
 - `api/drive_service.py`: Google Drive operations (list, upload, download, share, search).
-- `api/telegram_service.py`: Telegram alert notifications.
+
+### Shell Scripts
+- `scripts/telegram-notify.sh`: Shell wrapper for Telegram notifications
+  ```bash
+  # From deploy.sh or other scripts
+  ./scripts/telegram-notify.sh "Deploy completed successfully"
+  ./scripts/telegram-notify.sh --alert "Build failed!" --throttle 300
+  ```
 
 ### Middleware
 - `api/middleware.py`: API request logging middleware (duration, auth, IP, UA).
@@ -875,15 +1339,36 @@ Key settings in `fastpay_be/settings.py`:
    ./deploy.sh
    ```
 
-3. **Restart:**
+3. **Run Migrations:**
+   ```bash
+   docker compose exec web python manage.py migrate
+   ```
+
+4. **Setup Default Scheduled Tasks:**
+   ```bash
+   docker compose exec web python manage.py setup_default_tasks
+   ```
+
+5. **Restart:**
    ```bash
    ./restart.sh
    ```
 
-4. **View Logs:**
+6. **View Logs:**
    ```bash
-   docker-compose logs -f
+   # All services
+   docker compose logs -f
+   
+   # Specific services
+   docker compose logs -f web celery_worker celery_beat
    ```
+
+7. **Check Service Status:**
+   ```bash
+   docker compose ps
+   ```
+   
+   Expected services: `db`, `redis`, `web`, `celery_worker`, `celery_beat`, `nginx`
 
 ### Manual Deployment
 
@@ -1138,5 +1623,25 @@ For issues or questions:
 
 ---
 
-**Last Updated:** January 2025
-**Version:** 1.0.0
+**Last Updated:** February 2026
+**Version:** 2.1.0
+
+### Changelog (v2.1.0)
+- Added Celery + Redis for background task processing
+- Added scheduled (periodic) task system via django-celery-beat
+- Added task management API (`/api/scheduled-tasks/`, `/api/task-results/`)
+- Added async Telegram message sending tasks
+- Added device health monitoring tasks (offline, low battery, sync failures)
+- Added OAuth token refresh task
+- Added log cleanup and orphan record cleanup tasks
+- Added health check task for external services
+- Added `setup_default_tasks` management command
+- Added comprehensive test suite for scheduled tasks
+- Updated docker-compose.yml with redis, celery_worker, celery_beat services
+
+### Changelog (v2.0.0)
+- Restructured `api/views.py` into domain-specific modules under `api/views/`
+- Created centralized `api/utils/` module with Telegram, Firebase, SMS integrations
+- Added full Telegram integration with keyboards, webhooks, and multi-bot support
+- Added build notification support to `deploy.sh`
+- Added `scripts/telegram-notify.sh` shell wrapper

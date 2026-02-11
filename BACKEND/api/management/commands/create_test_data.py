@@ -182,6 +182,10 @@ class Command(BaseCommand):
 
         created = 0
         used_gmail_ids = set()
+        # GmailAccount can only be linked to one BankCard (unique on email_account_id)
+        already_used_gmail_ids = set(
+            BankCard.objects.filter(email_account_id__isnull=False).values_list('email_account_id', flat=True)
+        )
         
         for i, device in enumerate(devices[:count]):
             # Check if device already has a bank card
@@ -191,10 +195,13 @@ class Command(BaseCommand):
             template = random.choice(templates)
             bank = random.choice(banks)
             
-            # Select an unused gmail account
+            # Select an unused gmail account (not used in this run nor in existing bank cards)
             email_account = None
             if gmail_accounts and random.random() > 0.3:
-                available_gmails = [g for g in gmail_accounts if g.id not in used_gmail_ids]
+                available_gmails = [
+                    g for g in gmail_accounts
+                    if g.id not in used_gmail_ids and g.id not in already_used_gmail_ids
+                ]
                 if available_gmails:
                     email_account = random.choice(available_gmails)
                     used_gmail_ids.add(email_account.id)

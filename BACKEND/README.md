@@ -75,6 +75,8 @@ The API will be available at `http://127.0.0.1:8000/`
 
 ## Deployment to VPS
 
+**Deploy layout (staging and production):** For where code lives on the server (`/var/www/fastpay` for production, `/desktop/fastpay` for staging), which URLs serve what, and the full deploy process, see **[../docs/VPS_DEPLOY_STRUCTURE.md](../docs/VPS_DEPLOY_STRUCTURE.md)**.
+
 ### For Windows Users Deploying to Linux VPS
 
 **See `DEPLOY_FROM_WINDOWS.md` for detailed Windows → Linux deployment guide.**
@@ -101,6 +103,10 @@ The API will be available at `http://127.0.0.1:8000/`
    # Edit deploy-remote.ps1 with your VPS details
    .\deploy-remote.ps1 -VpsIp "your-vps-ip" -Username "root" -FirstTime
    ```
+
+### Gmail & Drive (staging and production)
+
+For Connect Gmail / Drive to work on your domain, set `GOOGLE_REDIRECT_URI` (backend callback URL) and `DASHBOARD_ORIGIN` in the backend env, and `VITE_API_BASE_URL` in the dashboard build. **See [docs/GMAIL_DRIVE_DEPLOY.md](docs/GMAIL_DRIVE_DEPLOY.md)** for staging vs production env and Google Console setup.
 
 ### For Linux Users
 

@@ -45,6 +45,10 @@ db.sqlite3-journal
 # Firebase credentials
 firebase-credentials.json
 
+# Google OAuth client secret (do not commit)
+client_secret_google.json
+client_secret_*.apps.googleusercontent.com.json
+
 # IDE
 .vscode/
 .idea/

@@ -51,7 +51,21 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install coverage pytest pytest-django pytest-cov
-    
+
+    - name: Validate environment variables
+      working-directory: BACKEND
+      env:
+        SECRET_KEY: test-secret-key-for-ci
+        ALLOWED_HOSTS: localhost,127.0.0.1
+        DB_ENGINE: django.db.backends.postgresql
+        DB_NAME: fastpay_test
+        DB_USER: test_user
+        DB_PASSWORD: test_pass
+        DB_HOST: localhost
+        DB_PORT: 5432
+        FIREBASE_DATABASE_URL: https://placeholder-for-ci.firebaseio.com
+      run: python manage.py validate_env --context=production
+
     - name: Run tests with coverage
       working-directory: BACKEND
       env:

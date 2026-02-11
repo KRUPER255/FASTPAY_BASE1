@@ -1004,6 +1004,124 @@ class ApiRequestLog(models.Model):
         return f"{self.method} {self.path} -> {self.status_code} @ {self.created_at}"
 
 
+class TelegramBot(models.Model):
+    """Telegram bot credentials for sending notifications"""
+    
+    CHAT_TYPE_CHOICES = [
+        ('personal', 'Personal Chat'),
+        ('group', 'Group'),
+        ('supergroup', 'Supergroup'),
+        ('channel', 'Channel'),
+    ]
+    
+    # Basic identification
+    name = models.CharField(
+        max_length=100,
+        unique=True,
+        db_index=True,
+        help_text="Display name for the bot (used in dropdown)"
+    )
+    token = models.CharField(
+        max_length=255,
+        help_text="Telegram Bot API token (from @BotFather)"
+    )
+    
+    # Target chat configuration
+    chat_ids = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of chat IDs to send messages to"
+    )
+    chat_type = models.CharField(
+        max_length=20,
+        choices=CHAT_TYPE_CHOICES,
+        default='channel',
+        db_index=True,
+        help_text="Type of chat: personal, group, supergroup, or channel"
+    )
+    message_thread_id = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Topic ID for supergroups with forum/topics enabled"
+    )
+    
+    # Cached chat info (auto-populated from Telegram API)
+    chat_title = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Cached chat title from Telegram"
+    )
+    chat_username = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Cached chat username (e.g., @mychannel)"
+    )
+    bot_username = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Bot's username from Telegram"
+    )
+    
+    # Description and status
+    description = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Optional description of the bot's purpose"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text="Whether this bot is active and available for use"
+    )
+    
+    # Usage tracking
+    last_used_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Last time this bot was used to send a message"
+    )
+    message_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Total messages sent through this bot"
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['name']
+        indexes = [
+            models.Index(fields=['name']),
+            models.Index(fields=['is_active']),
+            models.Index(fields=['chat_type']),
+            models.Index(fields=['last_used_at']),
+        ]
+        db_table = 'telegram_bots'
+        verbose_name = 'Telegram Bot'
+        verbose_name_plural = 'Telegram Bots'
+    
+    def __str__(self):
+        status = "active" if self.is_active else "inactive"
+        return f"{self.name} ({self.chat_type}, {status})"
+    
+    def get_masked_token(self):
+        """Return masked token for display (show first 10 and last 5 chars)"""
+        if not self.token or len(self.token) < 20:
+            return "***"
+        return f"{self.token[:10]}...{self.token[-5:]}"
+    
+    def increment_message_count(self):
+        """Increment message count and update last_used_at"""
+        from django.utils import timezone
+        self.message_count += 1
+        self.last_used_at = timezone.now()
+        self.save(update_fields=['message_count', 'last_used_at'])
+
+
 class WebhookEvent(models.Model):
     """Store inbound webhook payloads for audit/debugging."""
     event_type = models.CharField(max_length=50, db_index=True)

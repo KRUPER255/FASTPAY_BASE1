@@ -1,5 +1,11 @@
 {% extends "admin/base_site.html" %}
 
+{% block content %}
+{# Placeholder for Bootstrap 5 color-mode.js so it doesn't throw on addEventListener (missing toggle in DOM) #}
+<div data-bs-theme-value="light" style="display:none !important; position:absolute; left:-9999px;" aria-hidden="true" id="bs-theme-placeholder"></div>
+{{ block.super }}
+{% endblock %}
+
 {% block extrahead %}
 {{ block.super }}
 <style>

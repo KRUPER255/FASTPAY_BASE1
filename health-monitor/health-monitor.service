@@ -1,0 +1,11 @@
+[Unit]
+Description=FastPay health check monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/root/Desktop/FASTPAY_BASE/health-monitor/health-monitor.sh
+EnvironmentFile=-/root/Desktop/FASTPAY_BASE/health-monitor/health-monitor.env
+StandardOutput=journal
+StandardError=journal

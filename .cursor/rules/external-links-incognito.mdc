@@ -1,0 +1,38 @@
+---
+description: External links open in new tab with incognito hint (e.g. Yono Business)
+globs: "**/*.tsx,**/*.ts,**/*.html,**/*.jsx"
+alwaysApply: false
+---
+
+# External Links (New Tab + Incognito Hint)
+
+## Convention
+
+- **Browsers cannot open links in incognito from a page.** Only the user can (e.g. right-click → "Open link in incognito window").
+- For external bank/login or sensitive links, use a link that opens in a **new tab** and add a **tooltip** telling users how to open in incognito if they want.
+
+## Pattern for such links
+
+- `target="_blank"`
+- `rel="noopener noreferrer"`
+- `title="Opens in new tab. For incognito: right-click link → Open link in incognito window"` (or similar)
+
+## Reference link in this project
+
+- **Yono Business login**: `https://yonobusiness.sbi.bank.in/yonobusinesslogin`
+- Used in: **Bank Info** panel (`BankInfoPanel.tsx`) as "Open Yono Business" with the above pattern.
+
+## Example (React/TSX)
+
+```tsx
+<a
+  href="https://yonobusiness.sbi.bank.in/yonobusinesslogin"
+  target="_blank"
+  rel="noopener noreferrer"
+  title="Opens in new tab. For incognito: right-click link → Open link in incognito window"
+>
+  Open Yono Business
+</a>
+```
+
+When adding similar external links elsewhere, use the same pattern.

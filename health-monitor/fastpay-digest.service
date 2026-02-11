@@ -1,0 +1,11 @@
+[Unit]
+Description=FastPay 15-minute digest (service status, VPS, storage, memory, recent logs)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/root/Desktop/FASTPAY_BASE/health-monitor/digest-report.sh
+EnvironmentFile=-/root/Desktop/FASTPAY_BASE/health-monitor/health-monitor.env
+StandardOutput=journal
+StandardError=journal
