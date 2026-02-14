@@ -19,6 +19,8 @@ export function DefaultLayout({
   overallActiveTab,
   onOverallTabChange,
   headerExtra,
+  rightSidebar,
+  leftSidebarOverride,
 }: DashboardLayoutProps) {
   return (
     <UnifiedLayout
@@ -34,6 +36,8 @@ export function DefaultLayout({
       onDeviceSelect={onDeviceSelect}
       onRefreshDevices={onRefreshDevices}
       headerExtra={headerExtra}
+      rightSidebar={rightSidebar}
+      leftSidebarOverride={leftSidebarOverride}
     >
       {children}
     </UnifiedLayout>

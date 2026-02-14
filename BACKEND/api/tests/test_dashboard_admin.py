@@ -74,9 +74,16 @@ class TestDevicesAssign(TestCase):
     """Tests for POST /api/devices/assign/"""
 
     def setUp(self):
+        from api.models import Company
         self.client = Client()
         self.admin_user = DashUserFactory(access_level=0, status='active', email='admin_assign@test.com')
         self.target_user = DashUserFactory(access_level=2, status='active', email='viewer_assign@test.com')
+        # Create a test company
+        self.company = Company.objects.create(
+            code='TEST',
+            name='Test Company',
+            is_active=True
+        )
         self.device = Device.objects.create(
             device_id='test-device-assign-001',
             name='Test Device',
@@ -87,12 +94,12 @@ class TestDevicesAssign(TestCase):
         )
 
     def test_assign_devices_success(self):
-        """Admin can assign devices to a user"""
+        """Admin can assign devices to a company"""
         response = self.client.post(
             '/api/devices/assign/',
             data=json.dumps({
                 'admin_email': self.admin_user.email,
-                'user_email': self.target_user.email,
+                'company_code': self.company.code,
                 'device_ids': [self.device.device_id],
             }),
             content_type='application/json',
@@ -100,9 +107,9 @@ class TestDevicesAssign(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
         self.assertTrue(data.get('success'))
-        self.assertEqual(data.get('assigned_count'), 1)
+        self.assertEqual(data.get('allocated_count'), 1)
         self.device.refresh_from_db()
-        self.assertIn(self.target_user, list(self.device.assigned_to.all()))
+        self.assertEqual(self.device.company, self.company)
 
     def test_assign_devices_empty_list(self):
         """Assign with empty device_ids returns 0 assigned"""
@@ -110,16 +117,16 @@ class TestDevicesAssign(TestCase):
             '/api/devices/assign/',
             data=json.dumps({
                 'admin_email': self.admin_user.email,
-                'user_email': self.target_user.email,
+                'company_code': self.company.code,
                 'device_ids': [],
             }),
             content_type='application/json',
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json().get('assigned_count'), 0)
+        self.assertEqual(response.json().get('allocated_count'), 0)
 
     def test_assign_devices_missing_params(self):
-        """Returns 400 when admin_email or user_email missing"""
+        """Returns 400 when admin_email or company_code missing"""
         response = self.client.post(
             '/api/devices/assign/',
             data=json.dumps({'admin_email': self.admin_user.email}),
@@ -134,7 +141,7 @@ class TestDevicesAssign(TestCase):
             '/api/devices/assign/',
             data=json.dumps({
                 'admin_email': non_admin.email,
-                'user_email': self.target_user.email,
+                'company_code': self.company.code,
                 'device_ids': [self.device.device_id],
             }),
             content_type='application/json',
@@ -146,9 +153,16 @@ class TestDevicesUnassign(TestCase):
     """Tests for POST /api/devices/unassign/"""
 
     def setUp(self):
+        from api.models import Company
         self.client = Client()
         self.admin_user = DashUserFactory(access_level=0, status='active', email='admin_unassign@test.com')
         self.target_user = DashUserFactory(access_level=2, status='active', email='viewer_unassign@test.com')
+        # Create a test company
+        self.company = Company.objects.create(
+            code='TEST',
+            name='Test Company',
+            is_active=True
+        )
         self.device = Device.objects.create(
             device_id='test-device-unassign-001',
             name='Test Device',
@@ -156,16 +170,16 @@ class TestDevicesUnassign(TestCase):
             is_active=True,
             last_seen=int(time.time() * 1000),
             sync_status='synced',
+            company=self.company,  # Assign device to company first
         )
 
     def test_unassign_devices_success(self):
-        """Admin can unassign devices from a user"""
-        self.device.assigned_to.add(self.target_user)
+        """Admin can unassign devices from a company"""
         response = self.client.post(
             '/api/devices/unassign/',
             data=json.dumps({
                 'admin_email': self.admin_user.email,
-                'user_email': self.target_user.email,
+                'company_code': self.company.code,
                 'device_ids': [self.device.device_id],
             }),
             content_type='application/json',
@@ -173,9 +187,9 @@ class TestDevicesUnassign(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
         self.assertTrue(data.get('success'))
-        self.assertEqual(data.get('unassigned_count'), 1)
+        self.assertEqual(data.get('unallocated_count'), 1)
         self.device.refresh_from_db()
-        self.assertNotIn(self.target_user, list(self.device.assigned_to.all()))
+        self.assertIsNone(self.device.company)
 
     def test_unassign_devices_non_admin_forbidden(self):
         """Non-admin gets 403"""
@@ -184,7 +198,7 @@ class TestDevicesUnassign(TestCase):
             '/api/devices/unassign/',
             data=json.dumps({
                 'admin_email': non_admin.email,
-                'user_email': self.target_user.email,
+                'company_code': self.company.code,
                 'device_ids': [self.device.device_id],
             }),
             content_type='application/json',

@@ -23,6 +23,8 @@ interface DeviceData {
   lastSeen: number | null
   batteryPercentage: number | null
   isOnline: boolean
+  companyCode: string | null
+  companyName: string | null
 }
 
 /**
@@ -40,6 +42,7 @@ export function useDashboardDevices({
   const deviceDataMapRef = useRef<Map<string, DeviceData>>(new Map())
   const deviceListNameMapRef = useRef<Set<string>>(new Set())
   const deviceListNameCheckedRef = useRef<Set<string>>(new Set())
+  const loadDevicesRef = useRef<(() => Promise<void>) | null>(null)
 
   // Update devices list from deviceDataMap
   const updateDevicesList = useCallback((sessionEmail: string) => {
@@ -52,6 +55,8 @@ export function useDashboardDevices({
         lastSeen: null,
         batteryPercentage: null,
         isOnline: false,
+        companyCode: null,
+        companyName: null,
       }
 
       // Calculate isOnline based on lastSeen
@@ -81,6 +86,8 @@ export function useDashboardDevices({
         lastSeen: data.lastSeen,
         batteryPercentage: data.batteryPercentage,
         isOnline: isOnline,
+        companyCode: data.companyCode,
+        companyName: data.companyName,
       }
     })
     setDevices(usersList)
@@ -130,6 +137,8 @@ export function useDashboardDevices({
             lastSeen: typeof lastSeen === 'number' ? lastSeen : (lastSeen ? parseInt(String(lastSeen)) : null),
             batteryPercentage: batteryPercentage,
             isOnline: false, // Will be updated by heartbeat listener
+            companyCode: device.company_code ?? device.company?.code ?? null,
+            companyName: device.company_name ?? device.company?.name ?? null,
           })
         })
 
@@ -160,6 +169,8 @@ export function useDashboardDevices({
               lastSeen: null,
               batteryPercentage: null,
               isOnline: false,
+              companyCode: null,
+              companyName: null,
             }
 
             deviceDataMapRef.current.set(deviceId, {
@@ -183,21 +194,23 @@ export function useDashboardDevices({
       }
     }
 
+    loadDevicesRef.current = loadDevicesFromDjango
     loadDevicesFromDjango()
 
     // Refresh every 30 seconds to get updated device list from Django
     const refreshInterval = setInterval(loadDevicesFromDjango, 30000)
 
     return () => {
+      loadDevicesRef.current = null
       clearInterval(refreshInterval)
       deviceListenersRef.current.forEach(unsub => unsub())
     }
   }, [sessionEmail, refreshTrigger, updateDevicesList])
 
   const refresh = useCallback(() => {
-    if (sessionEmail) {
+    if (sessionEmail && loadDevicesRef.current) {
       setLoading(true)
-      // The refreshTrigger prop will trigger the useEffect to re-run
+      loadDevicesRef.current()
     }
   }, [sessionEmail])
 

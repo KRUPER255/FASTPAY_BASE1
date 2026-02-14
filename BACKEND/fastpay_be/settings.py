@@ -23,8 +23,10 @@ FORCE_SCRIPT_NAME = os.environ.get('FORCE_SCRIPT_NAME') or None
 csrf_origins = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in csrf_origins.split(',') if o.strip()]
 
-# Production security settings
-if not DEBUG:
+# Production security settings (skip SSL redirect during tests so test client gets 200, not 301)
+import sys
+TESTING = 'test' in sys.argv
+if not DEBUG and not TESTING:
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
@@ -187,16 +189,24 @@ if not CORS_ALLOW_ALL_ORIGINS:
         'https://www.fastpaygaming.com',
         'https://api.fastpaygaming.com',
         'https://owner.fastpaygaming.com',
+        'https://staging.fastpaygaming.com',
+        'https://sapi.fastpaygaming.com',
+        'https://sadmin.fastpaygaming.com',
+        'https://sredpay.fastpaygaming.com',
     ]
     CORS_ALLOWED_ORIGINS = env_origins if env_origins else default_origins
 
-# CSRF trusted origins (fallback for production domains)
+# CSRF trusted origins (fallback for production and staging domains)
 if not CSRF_TRUSTED_ORIGINS:
     CSRF_TRUSTED_ORIGINS = [
         'https://fastpaygaming.com',
         'https://www.fastpaygaming.com',
         'https://api.fastpaygaming.com',
         'https://owner.fastpaygaming.com',
+        'https://staging.fastpaygaming.com',
+        'https://sapi.fastpaygaming.com',
+        'https://sadmin.fastpaygaming.com',
+        'https://sredpay.fastpaygaming.com',
     ]
 
 # Email Configuration
@@ -220,6 +230,12 @@ SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 # Site URL for email links
 SITE_URL = os.environ.get('SITE_URL', 'http://localhost:8000' if DEBUG else 'https://fastpay.com')
+
+# Telegram webhook: optional secret token. If set, incoming webhook POSTs must send
+# the same value in X-Telegram-Bot-Api-Secret-Token (set in setWebhook).
+TELEGRAM_WEBHOOK_SECRET = os.environ.get('TELEGRAM_WEBHOOK_SECRET', '')
+# Base URL for the API (used by register_telegram_webhook command). Staging: https://sapi.<domain>; production: https://api.<domain>.
+TELEGRAM_WEBHOOK_BASE_URL = os.environ.get('TELEGRAM_WEBHOOK_BASE_URL', SITE_URL.rstrip('/'))
 
 # =============================================================================
 # Celery Configuration

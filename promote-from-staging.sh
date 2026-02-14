@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # Promote code from staging directory to production directory
-# Staging directory name: FASTPAY_BASE (path: /root/Desktop/FASTPAY_BASE). Production: /opt/FASTPAY
+# Override with STAGING_DIR and PROD_DIR. Canonical production path: /var/www/fastpay (see docs/VPS_DEPLOY_STRUCTURE.md).
 # Usage: ./promote-from-staging.sh [--dry-run] [--no-delete]
 
 set -euo pipefail
 
-STAGING_DIR="${STAGING_DIR:-/root/Desktop/FASTPAY_BASE}"
-PROD_DIR="${PROD_DIR:-/opt/FASTPAY}"
+STAGING_DIR="${STAGING_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+PROD_DIR="${PROD_DIR:-/var/www/fastpay}"
 DRY_RUN=false
 DELETE_FLAG="--delete"
 
@@ -53,7 +53,8 @@ EXCLUDES=(
     "BACKEND/nginx/acme/"
     "BACKEND/__pycache__/"
     "BACKEND/.pytest_cache/"
-    "DASHBOARD/.cache/"
+    "DASHBOARD_FASTPAY/.cache/"
+    "DASHBOARD_REDPAY/.cache/"
 )
 
 if [[ "$DRY_RUN" == "true" ]]; then

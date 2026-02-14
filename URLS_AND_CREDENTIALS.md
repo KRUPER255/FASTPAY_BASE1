@@ -8,14 +8,14 @@
 
 | Environment | Dashboard | API |
 |-------------|-----------|-----|
-| **Staging** | https://staging.fastpaygaming.com/ | https://api-staging.fastpaygaming.com/api/ |
+| **Staging** | https://staging.fastpaygaming.com/ | https://sapi.fastpaygaming.com/api/ |
 | **Production** | https://fastpaygaming.com/ | https://api.fastpaygaming.com/api/ |
 
 ### RedPay dashboard (DASHBOARD_REDPAY – variant)
 
 | Environment | Dashboard | Notes |
 |-------------|-----------|--------|
-| **Staging** | https://redpay-staging.fastpaygaming.com/ | Same VPS; API: https://api-staging.fastpaygaming.com/api/ |
+| **Staging** | https://sredpay.fastpaygaming.com/ | Same VPS; API: https://sapi.fastpaygaming.com/api/ |
 | **Production** | https://redpay.fastpaygaming.com/ | This VPS; add nginx server block when RedPay is deployed. |
 
 **Not on this VPS:** `https://owner.fastpaygaming.com/` is a separate deployment (not hosted on this VPS).
@@ -25,13 +25,33 @@
 - **FastPay login:** https://staging.fastpaygaming.com/login  
 - **FastPay dashboard (legacy):** https://staging.fastpaygaming.com/dashboard  
 - **FastPay dashboard v2 (5 sections):** https://staging.fastpaygaming.com/dashboard/v2  
-- **RedPay staging:** https://redpay-staging.fastpaygaming.com/  
+- **RedPay staging:** https://sredpay.fastpaygaming.com/  
 
 ### Production – direct links
 
 - **Login:** https://fastpaygaming.com/login  
 - **Dashboard:** https://fastpaygaming.com/dashboard  
 - **Dashboard v2:** https://fastpaygaming.com/dashboard/v2  
+
+---
+
+## Owner credentials (FastPay, Django Admin, RedPay)
+
+Create owner accounts for FastPay, Django Admin, and RedPay. Run once per environment after migrations:
+
+```bash
+# In BACKEND directory or inside backend web container:
+python manage.py create_owner_credentials
+```
+
+Optional args: `--fastpay-email`, `--fastpay-password`, `--fastpay-name`, `--redpay-email`, `--redpay-password`, `--redpay-name`.
+
+**Default users created:**
+
+| System              | Email               | Default password | Access              |
+|---------------------|---------------------|------------------|---------------------|
+| **FastPay & Django Admin** | owner@fastpay.com   | fastpay123       | Full Admin, /admin/ |
+| **RedPay**          | owner@redpay.com    | redpay123        | RedPay dashboard    |
 
 ---
 

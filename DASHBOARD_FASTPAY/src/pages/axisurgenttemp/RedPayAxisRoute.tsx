@@ -8,7 +8,7 @@ import AxisUrgentTempRoute from './AxisUrgentTempRoute'
  */
 export default function RedPayAxisRoute() {
   if (!isAuthenticated()) {
-    return <Navigate to="/login" replace state={{ from: '/redpay/axis' }} />
+    return <Navigate to="/login" replace state={{ from: '/dashboard' }} />
   }
   return <AxisUrgentTempRoute />
 }

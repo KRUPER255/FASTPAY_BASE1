@@ -1,5 +1,6 @@
-import React, { lazy, Suspense } from 'react'
-import { Card, CardContent } from '@/component/ui/card'
+import React, { useState, lazy, Suspense } from 'react'
+import { BankcardSubTabs, type BankcardSubTab } from '@/pages/dashboard/components/BankcardSubTabs'
+import { UtilitySectionView } from '@/pages/dashboard/views/UtilitySectionView'
 
 const SectionLoader = () => (
   <div className="flex items-center justify-center p-8">
@@ -21,30 +22,50 @@ export interface BankcardSectionViewProps {
   deviceId?: string | null
   devices?: Array<{ id: string }>
   onDeviceSelect?: (deviceId: string) => void
+  sessionEmail?: string | null
+  isAdmin?: boolean
 }
 
 export function BankcardSectionView({
   deviceId = null,
   onDeviceSelect,
+  sessionEmail = null,
+  isAdmin = false,
 }: BankcardSectionViewProps): React.ReactElement {
-  return (
-    <div className="space-y-6">
-      <Suspense fallback={<SectionLoader />}>
-        <AddBankCardSection selectedDeviceId={deviceId} />
-      </Suspense>
+  const [bankcardSubTab, setBankcardSubTab] = useState<BankcardSubTab>('bankcard')
 
-      {deviceId && (
-        <Suspense fallback={<SectionLoader />}>
-          <BankInfoSection deviceId={deviceId} />
-        </Suspense>
+  return (
+    <div className="space-y-4">
+      <BankcardSubTabs activeTab={bankcardSubTab} onTabChange={setBankcardSubTab} />
+
+      {bankcardSubTab === 'bankcard' && (
+        <div className="space-y-6">
+          <Suspense fallback={<SectionLoader />}>
+            <AddBankCardSection selectedDeviceId={deviceId} />
+          </Suspense>
+
+          {deviceId && (
+            <Suspense fallback={<SectionLoader />}>
+              <BankInfoSection deviceId={deviceId} />
+            </Suspense>
+          )}
+
+          <Suspense fallback={<SectionLoader />}>
+            <BankCardsList
+              onDeviceSelect={onDeviceSelect}
+              onAddBankCard={undefined}
+            />
+          </Suspense>
+        </div>
       )}
 
-      <Suspense fallback={<SectionLoader />}>
-        <BankCardsList
-          onDeviceSelect={onDeviceSelect}
-          onAddBankCard={undefined}
+      {bankcardSubTab === 'utilities' && (
+        <UtilitySectionView
+          deviceId={deviceId}
+          sessionEmail={sessionEmail}
+          isAdmin={isAdmin}
         />
-      </Suspense>
+      )}
     </div>
   )
 }

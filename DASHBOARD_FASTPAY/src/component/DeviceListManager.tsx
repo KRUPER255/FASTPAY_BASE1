@@ -399,7 +399,7 @@ export default function DeviceListManager({ onSelectDevice, onAttachBankCard }: 
         </Select>
       </div>
 
-      <div className="rounded-md border">
+      <div className="max-h-[60vh] overflow-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>

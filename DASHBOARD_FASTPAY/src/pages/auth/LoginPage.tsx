@@ -1,18 +1,33 @@
+import { useState, useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
 import { isAuthenticated, getLoginRedirectPath } from '@/lib/auth'
-import NeumorphismLogin from '@/component/ui/neumorphism-login'
+import LoginCard from '@/component/ui/login-card'
 
 /**
  * Unified Login Page Component
  *
- * Uses NeumorphismLogin (soft UI).
+ * Uses LoginCard (soft UI).
  * - Redirects authenticated users based on access level
- * - Staging: pre-fills superadmin@fastpay.com / superadmin123
  * - After login: Access 0 or 1 -> /dashboard/v2, Access 2 -> /redpay
  */
 export default function LoginPage() {
-  if (isAuthenticated()) {
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [isChecking, setIsChecking] = useState(true)
+
+  useEffect(() => {
+    // Check authentication once on mount
+    const authenticated = isAuthenticated()
+    setIsLoggedIn(authenticated)
+    setIsChecking(false)
+  }, [])
+
+  // Show nothing while checking to prevent flash
+  if (isChecking) {
+    return null
+  }
+
+  if (isLoggedIn) {
     return <Navigate to={getLoginRedirectPath()} replace />
   }
-  return <NeumorphismLogin />
+  return <LoginCard />
 }

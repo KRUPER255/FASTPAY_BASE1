@@ -29,14 +29,18 @@ function RedPayApp() {
             element={isAuthenticated() ? <RedpayDashboard /> : <Navigate to="/login" replace />}
           />
 
-          {/* Legacy /redpay/axis path - keep as alias to /dashboard */}
-          <Route path="/redpay/axis" element={<Navigate to="/dashboard" replace />} />
+          {/* Stray /dashboard/v2 (e.g. bookmark) -> /dashboard to avoid catch-all chain */}
+          <Route path="/dashboard/v2" element={<Navigate to="/dashboard" replace />} />
 
           {/* Root path - redirects based on authentication status */}
           <Route
             path="/"
             element={
-              isAuthenticated() ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />
+              isAuthenticated() ? (
+                <Navigate to="/dashboard" replace />
+              ) : (
+                <Navigate to="/login" replace />
+              )
             }
           />
 

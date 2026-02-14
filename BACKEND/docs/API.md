@@ -237,6 +237,34 @@ All scoped by `user_email` (query or body).
 
 ---
 
+## Google Sheets (dashboard / server sync)
+
+All endpoints require `user_email` (query for GET, body for POST) to identify the connected Google account (same as Gmail/Drive). Enable **Google Sheets API** in the same GCP project as Gmail and Drive.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `sheets/spreadsheets/` | List spreadsheets. Query: `user_email`. |
+| POST | `sheets/spreadsheets/` | Create spreadsheet. Body: `user_email`, `title`, optional `sheets`. |
+| GET | `sheets/spreadsheets/{id}/` | Spreadsheet metadata and sheet names. Query: `user_email`. |
+| GET | `sheets/spreadsheets/{id}/values/` | Read range. Query: `user_email`, `range` (e.g. `Sheet1!A1:D10`). |
+| PUT | `sheets/spreadsheets/{id}/values/update/` | Update range. Query: `user_email`, `range`. Body: `{"values": [[...]]}`. |
+| POST | `sheets/spreadsheets/{id}/values/append/` | Append rows. Query: `user_email`, `range`. Body: `{"values": [[...]]}`. |
+
+---
+
+## Sheet worker (dashboard → Utility)
+
+Used by the **Sheet worker** tab under Dashboard → Utility. Lists available processes (e.g. upload ZIP, Google Sheet to Excel) and runs one with file or sheet link input. Returns Excel file (binary) or JSON error. Auth: `IsAuthenticated`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `sheet-worker/processes/` | List available processes. Response: `[{ id, label, input_type, description?, accept? }]`. |
+| POST | `sheet-worker/run/` | Run a process. **Multipart (file):** `process_id`, optional `user_email`, `file`. **JSON (sheet link):** `process_id`, `user_email`, `sheet_link` or `spreadsheet_id`, optional `range`. Response: Excel (binary) or `{ "error": "..." }`. |
+
+Process IDs (from registry): `upload_zip` (input: file), `sheet_to_excel` (input: sheet_link + user_email, optional range).
+
+---
+
 ## Telegram (dashboard: bot management)
 
 | Method | Path | Description |
@@ -256,6 +284,7 @@ All scoped by `user_email` (query or body).
 | POST | `telegram/validate-token/` | Validate token (no bot ID). Body: `{"token": "..."}`. |
 | POST | `telegram/discover-chats/` | Discover chats with token only. Body: `{"token": "..."}`. |
 | POST | `telegram/lookup-chat/` | Lookup chat with token. Body: `{"token": "...", "username": "@mychannel"}`. |
+| POST | `telegram/webhook/<bot_id>/` | **Webhook** – Telegram sends updates here. Optional: set `TELEGRAM_WEBHOOK_SECRET` and send same value in `X-Telegram-Bot-Api-Secret-Token`. Commands: `/start`, `/help`, `/link`, `/status`. |
 
 ---
 
@@ -414,6 +443,12 @@ Device ID in Firebase and in the backend (Django `Device.device_id`) are the sam
   python manage.py copy_firebase_to_django --prod    # production: device/{deviceId}, fastpay/running/{deviceId}
   ```
   Optional: `--device-id=ID`, `--dry-run`, `--limit=N` (messages per device, default 100), `--no-update-existing`, `--messages-only`.
+
+- **Load from Firebase export JSON file (no live Firebase):**
+  ```bash
+  python manage.py load_firebase_json /path/to/firebase_export.json
+  ```
+  Reads a local `.json` file (Firebase-style export) and updates the DB. Devices are updated fully; messages, notifications, and contacts are limited to **200 per device** (override with `--limit N`). Use `--dry-run` to preview. See command docstring for expected JSON structure.
 
 - **Script (from `BACKEND/` or repo root):**
   ```bash

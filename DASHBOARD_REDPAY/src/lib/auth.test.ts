@@ -197,17 +197,18 @@ describe('auth utilities', () => {
   })
 
   describe('getLoginRedirectPath', () => {
-    it('should return /dashboard/v2 for admin user', () => {
-      expect(getLoginRedirectPath(0)).toBe('/dashboard/v2')
+    const dashboardPath =
+      import.meta.env.VITE_REDPAY_ONLY === 'true' ? '/dashboard' : '/dashboard/v2'
+
+    it('should return dashboard path for admin user', () => {
+      expect(getLoginRedirectPath(0)).toBe(dashboardPath)
     })
 
-    it('should return /dashboard/v2 for legacy OTP-only user', () => {
-      expect(getLoginRedirectPath(1)).toBe('/dashboard/v2')
+    it('should return dashboard path for legacy OTP-only user', () => {
+      expect(getLoginRedirectPath(1)).toBe(dashboardPath)
     })
 
-    it('should return /dashboard/v2 by default when no arguments and session is admin', () => {
-      // When no arguments, it uses getUserAccess() which defaults to 1 (OTP)
-      // But if we set a session, it will use that
+    it('should return dashboard path by default when no arguments and session is admin', () => {
       const session: AdminSession = {
         email: 'admin@example.com',
         status: 'active',
@@ -215,7 +216,7 @@ describe('auth utilities', () => {
         access: 0,
       }
       saveSession(session)
-      expect(getLoginRedirectPath()).toBe('/dashboard/v2')
+      expect(getLoginRedirectPath()).toBe(dashboardPath)
     })
 
     it('should return custom destination when provided', () => {

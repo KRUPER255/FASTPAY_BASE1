@@ -21,7 +21,7 @@ export function ProfileSectionView({
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card variant="outline">
         <CardHeader>
           <CardTitle>Profile</CardTitle>
           <CardDescription>

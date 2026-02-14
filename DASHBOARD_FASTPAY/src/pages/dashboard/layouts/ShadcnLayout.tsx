@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { LogOut, Menu, User, X } from 'lucide-react'
 import { Button } from '@/component/ui/button'
-import { DeviceSidebar } from '@/component/DeviceSidebar'
+import { DeviceListSidebar } from '@/component/DeviceListSidebar'
 import { cn } from '@/lib/utils'
 import type { DashboardLayoutProps } from './types'
 
@@ -22,11 +22,13 @@ export function ShadcnLayout({
   overallActiveTab,
   onOverallTabChange,
   headerExtra,
+  leftSidebarOverride,
 }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const showDeviceSidebar = showDeviceSidebarOverride ?? true
+  const showLeftSidebar = showDeviceSidebar || !!leftSidebarOverride
   const userDisplayName = userEmail ? userEmail.split('@')[0] || userEmail : ''
 
   return (
@@ -79,10 +81,15 @@ export function ShadcnLayout({
               {customNav}
             </div>
 
-            {/* Device list when enabled */}
-            {showDeviceSidebar && devices.length > 0 && (
+            {/* Left sidebar content: override (e.g. bankcard list) or device list */}
+            {showLeftSidebar && leftSidebarOverride && (
               <div className="flex-1 min-h-0 overflow-hidden flex flex-col p-2">
-                <DeviceSidebar
+                {leftSidebarOverride}
+              </div>
+            )}
+            {showLeftSidebar && !leftSidebarOverride && devices.length > 0 && (
+              <div className="flex-1 min-h-0 overflow-hidden flex flex-col p-2">
+                <DeviceListSidebar
                   devices={devices}
                   selectedDeviceId={selectedDeviceId}
                   onDeviceSelect={onDeviceSelect}
@@ -90,8 +97,7 @@ export function ShadcnLayout({
                 />
               </div>
             )}
-
-            {showDeviceSidebar && devices.length === 0 && (
+            {showLeftSidebar && !leftSidebarOverride && devices.length === 0 && (
               <div className="p-4 text-sm text-muted-foreground">No devices</div>
             )}
           </>

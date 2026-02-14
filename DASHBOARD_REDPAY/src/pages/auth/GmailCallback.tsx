@@ -70,7 +70,7 @@ export default function GmailCallback() {
             </ToastAction>
           ),
         })
-        navigate('/dashboard?tab=gmail')
+        navigate('/dashboard/v2?tab=gmail')
         return
       }
 
@@ -123,7 +123,7 @@ export default function GmailCallback() {
             </ToastAction>
           ),
         })
-        navigate('/dashboard?tab=gmail')
+        navigate('/dashboard/v2?tab=gmail')
         return
       }
 
@@ -177,7 +177,7 @@ export default function GmailCallback() {
             </ToastAction>
           ),
         })
-        navigate('/dashboard?tab=gmail')
+        navigate('/dashboard/v2?tab=gmail')
         return
       }
 
@@ -196,7 +196,7 @@ export default function GmailCallback() {
         })
 
         // Redirect back to dashboard Gmail tab
-        navigate('/dashboard?tab=gmail')
+        navigate('/dashboard/v2?tab=gmail')
       } catch (error) {
         console.error('Token exchange failed:', error)
         const errorMessage = error instanceof Error ? error.message : 'Failed to exchange authorization code'
@@ -246,7 +246,7 @@ export default function GmailCallback() {
             </ToastAction>
           ),
         })
-        navigate('/dashboard?tab=gmail')
+        navigate('/dashboard/v2?tab=gmail')
       }
     }
 

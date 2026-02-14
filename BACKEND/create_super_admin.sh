@@ -3,9 +3,9 @@
 # FastPay Super Admin Creation Script
 # This script creates a super admin user who can access all dashboards
 
-# Default values
+# Default values (password must be provided via --password or SUPERADMIN_PASSWORD env)
 EMAIL="superadmin@fastpay.com"
-PASSWORD="superadmin123"
+PASSWORD="${SUPERADMIN_PASSWORD:-}"
 FULL_NAME="Super Administrator"
 
 # Parse arguments
@@ -18,6 +18,12 @@ while [[ "$#" -gt 0 ]]; do
     esac
     shift
 done
+
+if [[ -z "$PASSWORD" ]]; then
+    echo "Error: Password required. Use --password PASSWORD or set SUPERADMIN_PASSWORD env var." >&2
+    echo "Example: $0 --email superadmin@fastpay.com --password 'YourSecurePassword'" >&2
+    exit 1
+fi
 
 echo "Creating Super Admin User..."
 echo "Email: $EMAIL"
@@ -42,7 +48,7 @@ if [ $? -eq 0 ]; then
     echo ""
     echo "Login credentials:"
     echo "Email: $EMAIL"
-    echo "Password: $PASSWORD"
+    echo "Password: (the password you provided)"
     echo ""
     echo "This user can access all dashboards:"
     echo "  - /dashboard"

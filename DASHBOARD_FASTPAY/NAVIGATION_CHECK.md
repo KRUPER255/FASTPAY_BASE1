@@ -1,6 +1,6 @@
 # Dashboard v2 – Navigation check
 
-Use this to verify all 5 sections of the new dashboard (`/dashboard/v2`) by navigation.
+Use this to verify the section navigation of the new dashboard (`/dashboard/v2`). The section nav shows **Device**, **Bankcard**, **Users** (admin), **Utility**, and **API**. Profile is available from the header user menu (avatar/name → Profile View), not as a section tab.
 
 ## Prerequisites
 
@@ -13,11 +13,13 @@ Open the dashboard, then use the top nav to open each section in order:
 
 | # | Section  | What to do | What you should see |
 |---|----------|------------|----------------------|
-| 1 | **Device**   | Click **Device** (or leave default) | Device sidebar + main area with sub-tabs: Message, Google, Data, Utility, Command, Instruction, Permission |
+| 1 | **Device**   | Click **Device** (or leave default) | Device sidebar + main area with sub-tabs; right column has Bank Card \| Utilities menu when a device is selected |
 | 2 | **Bankcard** | Click **Bankcard** | Add bank card section; if a device is selected, bank info and cards list |
-| 3 | **Utility**  | Click **Utility** | Sub-tabs: Export, Activation failures, Activity logs, Telegram, Analytics |
-| 4 | **API**      | Click **API** | API docs / endpoints section |
-| 5 | **Profile**  | Click **Profile** | Profile card, View profile, Reset password, logout |
+| 3 | **Users** (admin) | Click **Users** | User management (admin only) |
+| 4 | **Utility**  | Click **Utility** | Sub-tabs: Export, Activation failures, Activity logs, Telegram, My Telegram, Scheduled tasks, Analytics, API Log, Sheet worker |
+| 5 | **API**      | Click **API** | API docs / endpoints section |
+
+**Profile:** Open the user menu in the header (avatar/name) → **Profile View** for profile card, Reset password, logout.
 
 **Entry URL (after login):** Staging: https://staging.fastpaygaming.com/dashboard/v2 — Local: http://localhost:5173/dashboard/v2  
 (Also: https://staging.fastpaygaming.com/ and https://staging.fastpaygaming.com/dashboard redirect to `/dashboard/v2`.)
@@ -29,8 +31,9 @@ Open the dashboard, then use the top nav to open each section in order:
    - Local: `http://localhost:5173/dashboard/v2` (redirects to `/login` if not authenticated).
 
 2. **Confirm shell and nav**
-   - You should see the 5-section nav: **Device** | **Bankcard** | **Utility** | **API** | **Profile**.
+   - You should see the section nav: **Device** | **Bankcard** | **Users** (if admin) | **Utility** | **API**.
    - Default section is **Device** (and device sidebar is visible when Device is selected).
+   - Profile is in the header user menu (avatar/name dropdown), not in the section nav.
 
 3. **Device**
    - Click **Device** (or leave it selected).
@@ -44,7 +47,7 @@ Open the dashboard, then use the top nav to open each section in order:
 
 5. **Utility**
    - Click **Utility**.
-   - Expect: sub-tabs Export, Activation failures, Activity logs, Telegram, Analytics; each tab content loads.
+   - Expect: sub-tabs Export, Activation failures, Activity logs, Telegram, My Telegram, Scheduled tasks, Analytics, API Log, Sheet worker; each tab content loads.
    - No console errors.
 
 6. **API**
@@ -52,13 +55,14 @@ Open the dashboard, then use the top nav to open each section in order:
    - Expect: API section (docs/endpoints).
    - No console errors.
 
-7. **Profile**
-   - Click **Profile**.
-   - Expect: profile card, “View profile”, “Reset password”, logout.
+7. **Profile (header menu)**
+   - Click the user avatar/name in the header to open the dropdown.
+   - Choose **Profile View**.
+   - Expect: profile dialog with profile card, “View profile”, “Reset password”, logout.
    - No console errors.
 
 8. **Persistence**
-   - Switch to **Profile**, refresh the page: selected section should remain **Profile** (stored in `localStorage` under `dashboard-v2-section`).
+   - Switch to any section (e.g. **Utility**), refresh the page: selected section should remain (stored in `localStorage` under `dashboard-v2-section`).
 
 ## Notes
 

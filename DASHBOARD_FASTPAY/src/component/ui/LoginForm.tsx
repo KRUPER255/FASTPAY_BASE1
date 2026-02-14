@@ -7,10 +7,7 @@ import { Label } from '@/component/ui/label'
 import { MoveRight, Loader, Eye, EyeOff } from 'lucide-react'
 import { verifyLogin, saveSession, getLoginRedirectPath } from '@/lib/auth'
 import { getApiUrl } from '@/lib/api-client'
-
-const isStaging = import.meta.env.MODE === 'staging'
-const DEFAULT_EMAIL = 'superadmin@fastpay.com'
-const DEFAULT_PASSWORD = 'superadmin123'
+import { getAppName } from '@/lib/branding'
 
 interface LoginFormProps {
   onLoginSuccess: () => void
@@ -18,8 +15,8 @@ interface LoginFormProps {
 
 export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
   const navigate = useNavigate()
-  const [email, setEmail] = useState(isStaging ? DEFAULT_EMAIL : '')
-  const [password, setPassword] = useState(isStaging ? DEFAULT_PASSWORD : '')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [backendConnected, setBackendConnected] = useState<boolean | null>(null)
 
   useEffect(() => {
@@ -70,23 +67,6 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
     }
   }
 
-  const handleDemoLogin = () => {
-    setIsLoading(true)
-    setTimeout(() => {
-      const demoSession = {
-        email: 'demo@fastpay.com',
-        status: 'active',
-        timestamp: Date.now(),
-        access: 1,
-      }
-      saveSession(demoSession)
-      onLoginSuccess()
-      // Redirect based on demo user access level
-      const redirectPath = getLoginRedirectPath(1)
-      navigate(redirectPath)
-      setIsLoading(false)
-    }, 1000)
-  }
 
   return (
     <>
@@ -294,7 +274,7 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
               {/* Logo */}
               <div>
                 <div className="neon-logo">
-                  <div className="neon-logo-text">FASTPAY</div>
+                  <div className="neon-logo-text">{getAppName()}</div>
                   <div className="neon-tagline">[SYSTEM_ACCESS]</div>
                 </div>
               </div>
@@ -366,24 +346,6 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
                       <MoveRight className="w-4 h-4 ml-2" />
                     </>
                   )}
-                </Button>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t neon-divider" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-[#0a0a0a] px-2 neon-divider-text">[OR]</span>
-                  </div>
-                </div>
-
-                <Button
-                  className="neon-button"
-                  type="button"
-                  disabled={isLoading}
-                  onClick={handleDemoLogin}
-                >
-                  [DEMO_MODE]
                 </Button>
               </div>
 

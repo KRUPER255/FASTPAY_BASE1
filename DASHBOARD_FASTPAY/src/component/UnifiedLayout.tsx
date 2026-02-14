@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/component/ui/card'
 import { MessageSquare, User, LogOut, Moon, Sun, UserCircle, Key, Bell, ChevronDown } from 'lucide-react'
+
 import { Badge } from '@/component/ui/badge'
 import { Button } from '@/component/ui/button'
-import { DeviceSidebar } from './DeviceSidebar'
+import { DeviceListSidebar } from './DeviceListSidebar'
 import { ProfileViewDialog } from './ProfileViewDialog'
 import { ResetPasswordDialog } from './ResetPasswordDialog'
+import { clearSession, getLoginUrl } from '@/lib/auth'
 import { toggleDarkMode, getStoredTheme, applyTheme, type ThemePreset } from '@/lib/theme'
-import { useNeumorphism } from '@/context/NeumorphismContext'
 import { ThemeToggleSwitch } from '@/component/ui/ThemeToggleSwitch'
 import { SIDEBAR_TABS, isTabAllowedForAccess } from '@/lib/sidebar-tabs'
 import {
@@ -18,6 +19,33 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/component/ui/dropdown-menu'
+
+/** Logo "F" + "ast Dashboard" = "Fast Dashboard" in unified dashboard header */
+function DashboardLogoTitle({ title, description }: { title?: string; description?: string }) {
+  const isDefaultTitle = title === 'FastPay Dashboard' || !title
+  const displayTitle = isDefaultTitle ? 'ast Dashboard' : title
+  return (
+    <div className="flex items-center gap-3 shrink-0 min-w-0">
+      <div
+        className="dashboard-logo-entrance h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 ring-1 ring-primary/10"
+        aria-hidden
+      >
+        <span className="text-2xl font-black text-primary tracking-tighter select-none" style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}>
+          F
+        </span>
+      </div>
+      <div className="min-w-0 hidden sm:block">
+        <h1 className="text-xl sm:text-2xl font-semibold text-foreground truncate">
+          <span className="sr-only">F</span>
+          {displayTitle}
+        </h1>
+        {description && (
+          <p className="text-sm text-muted-foreground truncate">{description}</p>
+        )}
+      </div>
+    </div>
+  )
+}
 
 interface Device {
   id: string
@@ -57,6 +85,8 @@ interface UnifiedLayoutProps {
   showDeviceSidebarOverride?: boolean
   /** Optional node rendered in the header (e.g. layout theme switcher) */
   headerExtra?: React.ReactNode
+  /** When set, render this in the left column instead of the device list (e.g. bankcard section). */
+  leftSidebarOverride?: React.ReactNode
 }
 
 export function UnifiedLayout({
@@ -81,17 +111,23 @@ export function UnifiedLayout({
   customNav,
   showDeviceSidebarOverride,
   headerExtra,
+  leftSidebarOverride,
 }: UnifiedLayoutProps) {
   const [selectedDevice, setSelectedDevice] = useState<string | null>(
     selectedDeviceId || devices[0]?.id || null
   )
+
+  const handleLogoutClick = () => {
+    clearSession()
+    onLogout?.()
+    window.location.href = getLoginUrl()
+  }
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof document !== 'undefined') {
       return document.documentElement.classList.contains('dark')
     }
     return true
   })
-  const { isNeumorphism, setIsNeumorphism } = useNeumorphism()
   const [currentTheme, setCurrentTheme] = useState<ThemePreset>(() => {
     try {
       return getStoredTheme()
@@ -155,14 +191,9 @@ export function UnifiedLayout({
   const handleThemeToggle = (checked: boolean) => {
     const newDarkMode = toggleDarkMode()
     setIsDarkMode(newDarkMode)
-    setIsNeumorphism(!newDarkMode)
     // Reapply current theme with new mode
     applyTheme(currentTheme, newDarkMode)
   }
-
-  useEffect(() => {
-    setIsNeumorphism(!isDarkMode)
-  }, [isDarkMode, setIsNeumorphism])
 
   const handleDeviceChange = (deviceId: string) => {
     setSelectedDevice(deviceId)
@@ -178,25 +209,16 @@ export function UnifiedLayout({
     showDeviceSidebarOverride !== undefined ? showDeviceSidebarOverride : !isOverviewOnly
   const showRightSidebar =
     showDeviceSidebarOverride !== undefined ? showDeviceSidebarOverride : !isOverviewOnly
-  if (devices.length === 0) {
+  const showLeftSidebar = showDeviceSidebar || !!leftSidebarOverride
+  if (devices.length === 0 && !leftSidebarOverride) {
     return (
-      <div className={`min-h-screen w-full max-w-full min-w-0 bg-background p-2 sm:p-3 border border-border rounded-none sm:rounded-md lg:rounded-lg box-border overflow-hidden ${isNeumorphism ? 'neu-dashboard-wrapper' : ''}`}>
+      <div className="min-h-screen w-full max-w-full min-w-0 bg-background p-2 sm:p-3 border border-border rounded-none sm:rounded-md lg:rounded-lg box-border overflow-hidden">
         <div className="dashboard-outer-border rounded-none">
         <div className="dashboard-shell flex min-h-screen rounded-none overflow-hidden">
             <div className="flex-1 min-w-0 space-y-4 px-4 sm:px-6 py-4">
             <header className="border-b border-border/40 pb-3">
               <div className="flex flex-nowrap items-center gap-4 min-w-0">
-                <div className="flex items-center gap-3 shrink-0 min-w-0">
-                  <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                    <MessageSquare className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="min-w-0 hidden sm:block">
-                    <h1 className="text-xl sm:text-2xl font-semibold text-foreground truncate">{title}</h1>
-                    {description && (
-                      <p className="text-sm text-muted-foreground truncate">{description}</p>
-                    )}
-                  </div>
-                </div>
+                <DashboardLogoTitle title={title} description={description} />
                 <div className="flex-1 min-w-0 flex items-center justify-center">
                   {customNav ? (
                     <nav className="flex items-center gap-2">{customNav}</nav>
@@ -242,16 +264,14 @@ export function UnifiedLayout({
                       <span className="font-medium text-sm text-foreground truncate max-w-[120px]">{userDisplayName}</span>
                     </div>
                   )}
-                  {onLogout && (
-                    <Button variant="outline" size="sm" onClick={onLogout} className="gap-2 h-9 shrink-0">
-                      <LogOut className="h-4 w-4" />
-                      Logout
-                    </Button>
-                  )}
+                  <Button variant="outline" size="sm" onClick={handleLogoutClick} className="gap-2 h-9 shrink-0">
+                    <LogOut className="h-4 w-4" />
+                    Logout
+                  </Button>
                 </div>
               </div>
             </header>
-            <Card>
+            <Card variant="outline">
               <CardContent className="p-6">
                 <div className="text-center py-10 text-muted-foreground">
                   <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -267,23 +287,13 @@ export function UnifiedLayout({
   }
 
   return (
-    <div className={`min-h-screen w-full max-w-full min-w-0 bg-background p-2 sm:p-3 border border-border rounded-none sm:rounded-md lg:rounded-lg box-border overflow-hidden ${isNeumorphism ? 'neu-dashboard-wrapper' : ''}`}>
+    <div className="min-h-screen w-full max-w-full min-w-0 bg-background p-2 sm:p-3 border border-border rounded-none sm:rounded-md lg:rounded-lg box-border overflow-hidden">
           <div className="dashboard-outer-border rounded-none">
           <div className="dashboard-shell flex min-h-screen rounded-none overflow-hidden">
           <div className="flex-1 min-w-0 space-y-4 px-4 sm:px-6 py-4">
             <header className="border-b border-border/40 pb-3">
             <div className="flex flex-nowrap items-center gap-4 min-w-0">
-              <div className="flex items-center gap-3 shrink-0 min-w-0">
-                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                  <MessageSquare className="h-5 w-5 text-primary" />
-                </div>
-                <div className="min-w-0 hidden sm:block">
-                  <h1 className="text-xl sm:text-2xl font-semibold text-foreground truncate">{title}</h1>
-                  {description && (
-                    <p className="text-sm text-muted-foreground truncate">{description}</p>
-                  )}
-                </div>
-              </div>
+              <DashboardLogoTitle title={title} description={description} />
               <div className="flex-1 min-w-0 flex items-center justify-center">
                 {customNav ? (
                   <nav className="flex items-center gap-2">{customNav}</nav>
@@ -368,15 +378,14 @@ export function UnifiedLayout({
                         <span>Reset Password</span>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      {onLogout && (
-                        <DropdownMenuItem
-                          onClick={onLogout}
-                          className="cursor-pointer text-destructive focus:text-destructive"
-                        >
-                          <LogOut className="mr-2 h-4 w-4" />
-                          <span>Exit</span>
-                        </DropdownMenuItem>
-                      )}
+                      <DropdownMenuItem
+                        onSelect={() => setTimeout(() => handleLogoutClick(), 0)}
+                        onClick={handleLogoutClick}
+                        className="cursor-pointer text-destructive focus:text-destructive"
+                      >
+                        <LogOut className="mr-2 h-4 w-4" />
+                        <span>Exit</span>
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
@@ -384,27 +393,34 @@ export function UnifiedLayout({
             </div>
           </header>
 
-          {/* Main Content with Sidebars */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:pl-0">
-            {/* Left Sidebar - Device List */}
-            {showDeviceSidebar && (
-              <div className="lg:col-span-3 order-2 lg:order-1">
-                <DeviceSidebar
-                  devices={devices}
-                  selectedDeviceId={selectedDevice}
-                  onDeviceSelect={handleDeviceChange}
-                  onAttachBankCard={onAttachBankCard}
-                  onRefresh={onRefreshDevices}
-                  onCodeClick={onCodeClick}
-                />
+          {/* One structure: devicemenu | contentsection & bankcardbar side by side */}
+          <div
+            className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:pl-0"
+            data-structure="device-dashboard"
+            aria-label="Device dashboard: device list, content, bank card"
+          >
+            {/* devicemenu - Left: device list */}
+            {showLeftSidebar && (
+              <div className="lg:col-span-3 order-2 lg:order-1" data-region="devicemenu">
+                {leftSidebarOverride ?? (
+                  <DeviceListSidebar
+                    devices={devices}
+                    selectedDeviceId={selectedDevice}
+                    onDeviceSelect={handleDeviceChange}
+                    onAttachBankCard={onAttachBankCard}
+                    onRefresh={onRefreshDevices}
+                    onCodeClick={onCodeClick}
+                  />
+                )}
               </div>
             )}
 
-            {/* Center Content - Main Content Area */}
+            {/* contentsection - Center: main content */}
             <div
               className={`${
-                showDeviceSidebar && showRightSidebar ? 'lg:col-span-6' : showDeviceSidebar || showRightSidebar ? 'lg:col-span-9' : 'lg:col-span-12'
+                showLeftSidebar && showRightSidebar ? 'lg:col-span-6' : showLeftSidebar || showRightSidebar ? 'lg:col-span-9' : 'lg:col-span-12'
               } space-y-3 sm:space-y-4 order-1 lg:order-2`}
+              data-region="contentsection"
             >
               {/* Tagline Section */}
               {tagline && selectedDevice && (
@@ -417,14 +433,20 @@ export function UnifiedLayout({
                 </div>
               )}
 
-              {/* Children render content here */}
-              {children(selectedDevice)}
+              {/* Children render content here - animate when device changes */}
+              <div key={selectedDevice ?? 'no-device'} className="device-content-enter">
+                {children(selectedDevice)}
+              </div>
             </div>
 
-            {/* Right Sidebar - Device Info Cards */}
+            {/* bankcardbar - Right: bank card panel */}
             {showRightSidebar && rightSidebar && (
-              <div className="lg:col-span-3 order-3 lg:order-3 min-w-0 overflow-y-auto">
-                {selectedDevice ? rightSidebar(selectedDevice) : (
+              <div className="lg:col-span-3 order-3 lg:order-3 min-w-0 overflow-y-auto mt-3 lg:mt-12 flex flex-col min-h-0" data-region="bankcardbar">
+                {selectedDevice ? (
+                  <div key={selectedDevice} className="flex-1 min-h-0 flex flex-col bank-card-slide-in">
+                    {rightSidebar(selectedDevice)}
+                  </div>
+                ) : (
                   <div className="text-sm text-muted-foreground p-4">Select a device to view bank cards</div>
                 )}
               </div>

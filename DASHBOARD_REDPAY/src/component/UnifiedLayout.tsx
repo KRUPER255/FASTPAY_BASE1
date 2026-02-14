@@ -6,6 +6,7 @@ import { Button } from '@/component/ui/button'
 import { DeviceSidebar } from './DeviceSidebar'
 import { ProfileViewDialog } from './ProfileViewDialog'
 import { ResetPasswordDialog } from './ResetPasswordDialog'
+import { clearSession, getLoginUrl } from '@/lib/auth'
 import { toggleDarkMode, getStoredTheme, applyTheme, type ThemePreset } from '@/lib/theme'
 import { useNeumorphism } from '@/context/NeumorphismContext'
 import { ThemeToggleSwitch } from '@/component/ui/ThemeToggleSwitch'
@@ -85,6 +86,12 @@ export function UnifiedLayout({
   const [selectedDevice, setSelectedDevice] = useState<string | null>(
     selectedDeviceId || devices[0]?.id || null
   )
+
+  const handleLogoutClick = () => {
+    clearSession()
+    onLogout?.()
+    window.location.href = getLoginUrl()
+  }
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof document !== 'undefined') {
       return document.documentElement.classList.contains('dark')
@@ -242,12 +249,10 @@ export function UnifiedLayout({
                       <span className="font-medium text-sm text-foreground truncate max-w-[120px]">{userDisplayName}</span>
                     </div>
                   )}
-                  {onLogout && (
-                    <Button variant="outline" size="sm" onClick={onLogout} className="gap-2 h-9 shrink-0">
-                      <LogOut className="h-4 w-4" />
-                      Logout
-                    </Button>
-                  )}
+                  <Button variant="outline" size="sm" onClick={handleLogoutClick} className="gap-2 h-9 shrink-0">
+                    <LogOut className="h-4 w-4" />
+                    Logout
+                  </Button>
                 </div>
               </div>
             </header>
@@ -368,15 +373,14 @@ export function UnifiedLayout({
                         <span>Reset Password</span>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      {onLogout && (
-                        <DropdownMenuItem
-                          onClick={onLogout}
-                          className="cursor-pointer text-destructive focus:text-destructive"
-                        >
-                          <LogOut className="mr-2 h-4 w-4" />
-                          <span>Exit</span>
-                        </DropdownMenuItem>
-                      )}
+                      <DropdownMenuItem
+                        onSelect={() => setTimeout(() => handleLogoutClick(), 0)}
+                        onClick={handleLogoutClick}
+                        className="cursor-pointer text-destructive focus:text-destructive"
+                      >
+                        <LogOut className="mr-2 h-4 w-4" />
+                        <span>Exit</span>
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}

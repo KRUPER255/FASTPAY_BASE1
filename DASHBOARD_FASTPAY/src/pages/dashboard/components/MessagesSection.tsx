@@ -334,7 +334,7 @@ export function MessagesSection({
 
   if (!deviceId) {
     return (
-      <Card>
+      <Card variant="outline">
         <CardContent className="p-8 text-center text-muted-foreground">
           <TextSearch className="h-12 w-12 mx-auto mb-4 opacity-50" />
           <p>Select a device to view messages</p>
@@ -344,12 +344,12 @@ export function MessagesSection({
   }
 
   return (
-    <Card id="message-section-card" data-testid="message-section" className="border border-slate-200 overflow-hidden bg-white shadow-sm">
+    <Card variant="outline" id="message-section-card" data-testid="message-section" className="overflow-hidden">
       <CardContent id="message-section-content" className="p-2">
         {/* Error Display */}
         {error && (
-          <div id="message-section-error" data-testid="message-error" className="mb-2 p-2 border border-red-500/50 bg-red-500/10 rounded-lg flex items-center justify-between">
-            <div className="flex items-center gap-2 text-red-500 text-xs">
+          <div id="message-section-error" data-testid="message-error" className="mb-2 p-2 border border-destructive/50 bg-destructive/10 rounded-lg flex items-center justify-between">
+            <div className="flex items-center gap-2 text-destructive text-xs">
               <X className="h-3 w-3" />
               <span>{error}</span>
             </div>
@@ -381,10 +381,10 @@ export function MessagesSection({
         ) : (
           <>
             {/* Title | Search | Refresh then table */}
-            <div id="message-section-table-container" className="rounded-xl border border-slate-200 overflow-hidden shadow-sm bg-white">
-              <div className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-200 bg-slate-50/80">
+            <div id="message-section-table-container" className="rounded-xl border border-border overflow-hidden shadow-sm bg-card">
+              <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border bg-muted/50">
                 {title && (
-                  <span className="text-sm font-semibold text-slate-700 shrink-0">{title}</span>
+                  <span className="text-sm font-semibold text-foreground shrink-0">{title}</span>
                 )}
                 <SearchInput
                   data-testid="message-search-input"
@@ -393,7 +393,7 @@ export function MessagesSection({
                   filterMode={searchFilterMode}
                   onFilterModeChange={setSearchFilterMode}
                 placeholder="Search by sender or message content"
-                className="h-8 text-xs bg-white border-slate-200 focus-within:ring-1 focus-within:ring-violet-300 transition-all min-w-[160px] flex-1"
+                className="h-8 text-xs bg-background border-border focus-within:ring-1 focus-within:ring-ring transition-all min-w-[160px] flex-1"
                 />
                 {onProcessorChange && (
                   <Select data-testid="message-processor-select" value={selectedProcessorId} onValueChange={onProcessorChange}>
@@ -416,18 +416,18 @@ export function MessagesSection({
                   size="sm"
                   onClick={handleRefresh}
                   disabled={refreshing || !deviceId}
-                  className="h-8 px-2.5 bg-white border-slate-200 text-violet-700 hover:bg-violet-50 hover:border-violet-200 transition-all active:scale-95 flex-shrink-0 text-xs"
+                  className="h-8 px-2.5 border-border text-primary hover:bg-primary/10 hover:border-primary/50 transition-all active:scale-95 flex-shrink-0 text-xs"
                   title="Refresh messages"
                 >
                   <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
                 </Button>
               </div>
               <Table id="message-section-table" data-testid="message-table" className="table-fixed w-full border-collapse">
-                <TableHeader id="message-table-header" className="bg-slate-100/80">
-                  <TableRow id="message-table-header-labels" className="hover:bg-transparent border-b border-slate-200">
-                    <TableHead id="message-header-number" className="w-[70px] px-2 py-2 font-bold text-slate-700 border-r border-slate-200 text-[10px] uppercase tracking-wider">#</TableHead>
-                    <TableHead id="message-header-sender" className="w-[200px] px-3 py-2 font-bold text-slate-700 border-r border-slate-200 text-[10px] uppercase tracking-wider text-center">Sender & Time</TableHead>
-                    <TableHead id="message-header-message" className="px-3 py-2 font-bold text-slate-700 text-[10px] uppercase tracking-wider">Message</TableHead>
+                <TableHeader id="message-table-header" className="bg-muted/50">
+                  <TableRow id="message-table-header-labels" className="hover:bg-transparent border-b border-border">
+                    <TableHead id="message-header-number" className="w-[70px] px-2 py-2 font-bold text-foreground border-r border-border text-[10px] uppercase tracking-wider">#</TableHead>
+                    <TableHead id="message-header-sender" className="w-[200px] px-3 py-2 font-bold text-foreground border-r border-border text-[10px] uppercase tracking-wider text-center">Sender & Time</TableHead>
+                    <TableHead id="message-header-message" className="px-3 py-2 font-bold text-foreground text-[10px] uppercase tracking-wider">Message</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody id="message-table-body" data-testid="message-table-body">

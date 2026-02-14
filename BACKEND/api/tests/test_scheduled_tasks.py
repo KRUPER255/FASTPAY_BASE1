@@ -32,7 +32,7 @@ from api.tests.factories import (
 class TestTelegramAsyncTasks:
     """Test Telegram async task functions"""
     
-    @patch('api.tasks.send_message')
+    @patch('api.utils.telegram.send_message')
     def test_send_telegram_message_async_success(self, mock_send):
         """Test async message send success"""
         from api.tasks import send_telegram_message_async
@@ -57,7 +57,7 @@ class TestTelegramAsyncTasks:
             reply_markup=None,
         )
     
-    @patch('api.tasks.send_alert')
+    @patch('api.utils.telegram.send_alert')
     def test_send_telegram_alert_async_success(self, mock_alert):
         """Test async alert send success"""
         from api.tasks import send_telegram_alert_async

@@ -2,6 +2,8 @@
 
 A comprehensive React-based dashboard for managing FastPay Android devices, monitoring SMS/notifications, executing remote commands, and managing device configurations.
 
+**Role:** This is the **core** dashboard. Deploy layout, build matrix, and URLs: [docs/VPS_DEPLOY_STRUCTURE.md](../docs/VPS_DEPLOY_STRUCTURE.md).
+
 ## 📋 Table of Contents
 
 - [Overview](#overview)

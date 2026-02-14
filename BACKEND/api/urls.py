@@ -11,8 +11,9 @@ from .views import (
     GmailAccountViewSet,
     CommandLogViewSet, AutoReplyLogViewSet, ActivationFailureLogViewSet, ApiRequestLogViewSet,
     CaptureItemViewSet,
-    TelegramBotViewSet,
+    TelegramBotViewSet, TelegramUserLinkViewSet, CompanyViewSet,
     validate_telegram_token, discover_chats_by_token, lookup_chat_by_token,
+    telegram_webhook,
     validate_apk_login, dashboard_login, dashboard_profile, dashboard_reset_password,
     dashboard_update_access, dashboard_configure_access, dashboard_update_profile,
     dashboard_update_theme_mode,
@@ -35,6 +36,7 @@ from .views import (
     ip_download_file,
     # Scheduled task views
     ScheduledTaskViewSet, TaskResultViewSet, available_tasks, task_status,
+    run_command_view,
 )
 from .webhooks import (
     webhook_receive, webhook_failed, webhook_success, webhook_refund, webhook_dispute,
@@ -57,8 +59,10 @@ router.register(r'activation-failure-logs', ActivationFailureLogViewSet, basenam
 router.register(r'api-request-logs', ApiRequestLogViewSet, basename='apirequestlog')
 router.register(r'captures', CaptureItemViewSet, basename='captureitem')
 router.register(r'telegram-bots', TelegramBotViewSet, basename='telegrambot')
+router.register(r'telegram-links', TelegramUserLinkViewSet, basename='telegramuserlink')
 router.register(r'scheduled-tasks', ScheduledTaskViewSet, basename='scheduledtask')
 router.register(r'task-results', TaskResultViewSet, basename='taskresult')
+router.register(r'companies', CompanyViewSet, basename='company')
 
 urlpatterns = [
     path('dashboard-users/', dashboard_users_list, name='dashboard-users-list'),
@@ -120,7 +124,13 @@ urlpatterns = [
     path('drive/folders/', drive_create_folder, name='drive-create-folder'),
     path('drive/storage/', drive_storage_info, name='drive-storage-info'),
     path('drive/search/', drive_search_files, name='drive-search-files'),
-    
+
+    # Google Sheets API endpoints
+    path('sheets/', include('api.sheets.urls')),
+
+    # Sheet worker (Utility: list processes, run with file or sheet link)
+    path('sheet-worker/', include('api.sheet_worker.urls')),
+
     # IP Download File endpoint
     path('ip/download/file/', ip_download_file, name='ip-download-file'),
     
@@ -128,8 +138,13 @@ urlpatterns = [
     path('telegram/validate-token/', validate_telegram_token, name='telegram-validate-token'),
     path('telegram/discover-chats/', discover_chats_by_token, name='telegram-discover-chats'),
     path('telegram/lookup-chat/', lookup_chat_by_token, name='telegram-lookup-chat'),
+    # Telegram webhook (Telegram pushes updates here; one URL per bot)
+    path('telegram/webhook/<int:bot_id>/', telegram_webhook, name='telegram-webhook'),
     
     # Scheduled task endpoints
     path('available-tasks/', available_tasks, name='available-tasks'),
     path('task-status/<str:task_id>/', task_status, name='task-status'),
+
+    # Staff-only: run allowlisted management commands in the browser
+    path('run-command/', run_command_view, name='run-command'),
 ]

@@ -123,16 +123,18 @@ else
 fi
 echo ""
 
-# --- 4. Dashboard build (optional) ---
+# --- 4. Dashboard build (staging mode, same as deploy) ---
 echo "--- 4. Dashboard build ---"
-if command -v npm &>/dev/null && [[ -f "$BASE_DIR/DASHBOARD/package.json" ]]; then
-    if (cd "$BASE_DIR/DASHBOARD" && npm run build 2>/dev/null); then
-        pass "Dashboard npm run build succeeded"
+DASH_DIR=""
+[[ -f "$BASE_DIR/DASHBOARD_FASTPAY/package.json" ]] && DASH_DIR="$BASE_DIR/DASHBOARD_FASTPAY"
+if command -v npm &>/dev/null && [[ -n "$DASH_DIR" ]]; then
+    if (cd "$DASH_DIR" && VITE_BASE_PATH=/ npm run build -- --mode staging 2>/dev/null); then
+        pass "Dashboard npm run build succeeded (${DASH_DIR##*/})"
     else
         fail "Dashboard npm run build failed"
     fi
 else
-    skip "npm or DASHBOARD/package.json not found"
+    skip "npm or DASHBOARD_FASTPAY/package.json not found"
 fi
 echo ""
 
@@ -221,10 +223,10 @@ if grep -q "REDIS_URL" "$BACKEND_DIR/.env.example" 2>/dev/null; then
 else
     fail "BACKEND/.env.example missing REDIS_URL"
 fi
-if grep -qE "VITE_API_MAX_RETRIES|VITE_API_TIMEOUT|REDIS" "$BASE_DIR/DASHBOARD/.env.example" 2>/dev/null; then
-    pass "DASHBOARD/.env.example has retry/timeout or relevant vars"
+if grep -qE "VITE_API_MAX_RETRIES|VITE_API_TIMEOUT|REDIS" "${BASE_DIR}/DASHBOARD_FASTPAY/.env.example" 2>/dev/null; then
+    pass "DASHBOARD_FASTPAY/.env.example has retry/timeout or relevant vars"
 else
-    skip "DASHBOARD/.env.example retry vars optional"
+    skip "DASHBOARD_FASTPAY/.env.example retry vars optional"
 fi
 echo ""
 

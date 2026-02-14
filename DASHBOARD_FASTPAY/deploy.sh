@@ -32,12 +32,23 @@ if [[ "$SKIP_INSTALL" != "true" ]]; then
     npm install --legacy-peer-deps
 fi
 
+# Read VITE_API_BASE_URL from .env.<mode> and pass into build so it is always in the bundle
+VITE_API_BASE_URL_VALUE=""
+if [[ -f ".env.$MODE" ]]; then
+    VITE_API_BASE_URL_VALUE=$(grep -E '^VITE_API_BASE_URL=' ".env.$MODE" 2>/dev/null | cut -d= -f2- || true)
+fi
+if [[ "$MODE" == "production" && -z "${VITE_API_BASE_URL_VALUE// }" ]]; then
+    echo -e "${RED}ERROR: VITE_API_BASE_URL must be set in .env.production for production builds.${NC}" >&2
+    exit 1
+fi
+export VITE_API_BASE_URL="$VITE_API_BASE_URL_VALUE"
+
 if [[ "$MODE" == "staging" ]]; then
     echo -e "${GREEN}Building for staging (base: /)...${NC}"
     VITE_BASE_PATH=/ npm run build -- --mode staging
 else
     echo -e "${GREEN}Building for production (base: /)...${NC}"
-    VITE_BASE_PATH=/ npm run build -- --mode production
+    VITE_API_BASE_URL="$VITE_API_BASE_URL_VALUE" VITE_BASE_PATH=/ npm run build -- --mode production
 fi
 
 if [[ ! -f "dist/index.html" ]]; then

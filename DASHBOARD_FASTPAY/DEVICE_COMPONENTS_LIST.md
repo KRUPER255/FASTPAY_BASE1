@@ -1,35 +1,25 @@
 # Dashboard Components - After Device Selection
 
 ## Overview
-When a device is selected in the dashboard, the following components are rendered based on the active tab and device sub-tab.
+When a device is selected in the Device section, the following components are rendered based on the active **section** (Device / Bankcard / Users / Utility / API) and, within Device, the **device section tab** (`deviceSectionTab`).
 
 ---
 
-## Always Rendered (When Device Selected)
+## Always Rendered in Device Section (When Device Selected)
 
-### 1. **DeviceSubTabs**
-- **File**: `@/component/DeviceSubTabs`
-- **Purpose**: Navigation tabs for device-specific sub-sections
-- **Sub-tabs Available**:
-  - Message
-  - Gmail
-  - Drive
-  - Data
-  - Utility
-  - Command
-  - Instruction
-  - Permission
+### 1. **DeviceSectionTabs**
+- **File**: `src/pages/dashboard/components/DeviceSectionTabs.tsx`
+- **Purpose**: Row of sub-tabs for device-specific sub-views
+- **Tabs**: Message, Gmail, Data, Utility, Command, Instruction, Permission, Company (admin)
 
 ---
 
-## Components by Active Tab
+## Components by Device Section Tab
 
-### When `activeTab === 'sms'` (SMS Tab)
+The main content is driven by `deviceSectionTab` (Message, Gmail, Data, Utility, etc.).
 
-The component shown depends on `deviceSubTab`:
-
-#### 1. **MessagesSection** (deviceSubTab === 'message')
-- **File**: `@/component/MessagesSection`
+#### 1. **MessagesSection** (deviceSectionTab === 'message')
+- **File**: `src/pages/dashboard/components/MessagesSection.tsx`
 - **Props**:
   - `deviceId`: Current device ID
   - `messages`: SMS messages array
@@ -45,48 +35,44 @@ The component shown depends on `deviceSubTab`:
   - `onRetry`: Retry handler
   - `formatMessageTimestamp`: Timestamp formatter
 
-#### 2. **GmailSection** (deviceSubTab === 'gmail')
-- **File**: `@/component/GmailSection`
+#### 2. **GmailSection** (deviceSectionTab === 'gmail')
+- **File**: `src/pages/dashboard/components/GmailSection.tsx`
 - **Props**:
   - `deviceId`: Current device ID
   - `isAdmin`: Admin status
 
-#### 3. **DriveSection** (deviceSubTab === 'drive')
-- **File**: `@/component/DriveSection`
-- **Props**:
-  - `deviceId`: Current device ID
-  - `isAdmin`: Admin status
+#### 3. **Data** (deviceSectionTab === 'data')
+- **Type**: Sub-tabs (Notifications, Contacts, Input Files, System Info, Bank Info, Export, Remote Messages) with sections such as NotificationsSection, ContactsSection, InputFilesSection, SystemInfoSection, BankInfoSection, ExportSection, Remote block, etc.
 
-#### 4. **Data Section Placeholder** (deviceSubTab === 'data')
-- **Type**: Inline component (not a separate file)
-- **Content**: "Data Section - Data management features coming soon"
-
-#### 5. **UtilitiesSection** (deviceSubTab === 'utility')
-- **File**: `@/component/UtilitiesSection`
+#### 4. **UtilitiesSection** (deviceSectionTab === 'utility')
+- **File**: `src/pages/dashboard/components/UtilitiesSection.tsx`
 - **Props**:
   - `deviceId`: Current device ID
 
-#### 6. **CommandsSection** (deviceSubTab === 'command')
-- **File**: `@/component/CommandsSection`
+#### 5. **CommandsSection** (deviceSectionTab === 'command')
+- **File**: `src/pages/dashboard/components/CommandsSection.tsx`
 - **Props**:
   - `deviceId`: Current device ID
 
-#### 7. **InstructionsSection** (deviceSubTab === 'instruction')
-- **File**: `@/component/InstructionsSection`
+#### 6. **InstructionsSection** (deviceSectionTab === 'instruction')
+- **File**: `src/pages/dashboard/components/InstructionsSection.tsx`
 - **Props**:
   - `deviceId`: Current device ID
 
-#### 8. **PermissionsSection** (deviceSubTab === 'permission')
-- **File**: `@/component/PermissionsSection`
+#### 7. **PermissionsSection** (deviceSectionTab === 'permission')
+- **File**: `src/pages/dashboard/components/PermissionsSection.tsx`
+
+#### 8. **DeviceSectionCompanyCard** (deviceSectionTab === 'company', admin only)
+- **File**: `src/pages/dashboard/components/DeviceSectionCompanyCard.tsx`
 - **Props**:
   - `deviceId`: Current device ID
 
 ---
 
-### When `activeTab === 'notifications'` (Notifications Tab)
+### Data sub-tabs (when deviceSectionTab === 'data')
 
 #### **NotificationsSection**
-- **File**: `@/component/NotificationsSection`
+- **File**: `src/pages/dashboard/components/NotificationsSection.tsx`
 - **Props**:
   - `deviceId`: Current device ID
   - `notifications`: Notifications array
@@ -99,10 +85,8 @@ The component shown depends on `deviceSubTab`:
 
 ---
 
-### When `activeTab === 'contacts'` (Contacts Tab)
-
 #### **ContactsSection**
-- **File**: `@/component/ContactsSection`
+- **File**: `src/pages/dashboard/components/ContactsSection.tsx`
 - **Props**:
   - `deviceId`: Current device ID
   - `contacts`: Contacts array
@@ -114,10 +98,8 @@ The component shown depends on `deviceSubTab`:
 
 ---
 
-### When `activeTab === 'input'` (Input Files Tab)
-
 #### **InputFilesSection**
-- **File**: `@/component/InputFilesSection`
+- **File**: `src/pages/dashboard/components/InputFilesSection.tsx`
 - **Props**:
   - `deviceId`: Current device ID
 
@@ -129,10 +111,16 @@ All components are **lazy-loaded** using React's `lazy()` and wrapped in `<Suspe
 
 ---
 
+## Right sidebar (Device section only)
+
+When section is **Device** and a device is selected, the right column shows **DeviceSectionRightSidebar** (`src/pages/dashboard/components/DeviceSectionRightSidebar.tsx`): Bank Card | Utilities tabs, then **BankCardSidebar** or **UtilitySectionView**. When no device is selected it shows "Select a device to view bank cards".
+
+---
+
 ## Component File Locations
 
-All components are located in:
-- This project's `src/component/` (DASHBOARD_FASTPAY)
+Device section components live under:
+- `src/pages/dashboard/components/` and `src/pages/dashboard/views/` (DASHBOARD_FASTPAY)
 
 ---
 
@@ -140,15 +128,16 @@ All components are located in:
 
 | Component Name | File Path | Used When |
 |---------------|-----------|-----------|
-| DeviceSubTabs | `@/component/DeviceSubTabs` | Always (when device selected) |
-| MessagesSection | `@/component/MessagesSection` | activeTab='sms' AND deviceSubTab='message' |
-| GmailSection | `@/component/GmailSection` | activeTab='sms' AND deviceSubTab='gmail' |
-| DriveSection | `@/component/DriveSection` | activeTab='sms' AND deviceSubTab='drive' |
-| Data Section (placeholder) | Inline | activeTab='sms' AND deviceSubTab='data' |
-| UtilitiesSection | `@/component/UtilitiesSection` | activeTab='sms' AND deviceSubTab='utility' |
-| CommandsSection | `@/component/CommandsSection` | activeTab='sms' AND deviceSubTab='command' |
-| InstructionsSection | `@/component/InstructionsSection` | activeTab='sms' AND deviceSubTab='instruction' |
-| PermissionsSection | `@/component/PermissionsSection` | activeTab='sms' AND deviceSubTab='permission' |
-| NotificationsSection | `@/component/NotificationsSection` | activeTab='notifications' |
-| ContactsSection | `@/component/ContactsSection` | activeTab='contacts' |
-| InputFilesSection | `@/component/InputFilesSection` | activeTab='input' |
+| DeviceSectionTabs | `src/pages/dashboard/components/DeviceSectionTabs.tsx` | Device section (when device selected) |
+| DeviceSectionRightSidebar | `src/pages/dashboard/components/DeviceSectionRightSidebar.tsx` | Device section right column (Bank Card \| Utilities) |
+| MessagesSection | `src/pages/dashboard/components/MessagesSection.tsx` | deviceSectionTab='message' |
+| GmailSection | `src/pages/dashboard/components/GmailSection.tsx` | deviceSectionTab='gmail' |
+| Data sub-tabs + sections | various | deviceSectionTab='data' |
+| UtilitiesSection | `src/pages/dashboard/components/UtilitiesSection.tsx` | deviceSectionTab='utility' |
+| CommandsSection | `src/pages/dashboard/components/CommandsSection.tsx` | deviceSectionTab='command' |
+| InstructionsSection | `src/pages/dashboard/components/InstructionsSection.tsx` | deviceSectionTab='instruction' |
+| PermissionsSection | `src/pages/dashboard/components/PermissionsSection.tsx` | deviceSectionTab='permission' |
+| DeviceSectionCompanyCard | `src/pages/dashboard/components/DeviceSectionCompanyCard.tsx` | deviceSectionTab='company' (admin) |
+| NotificationsSection | `src/pages/dashboard/components/NotificationsSection.tsx` | Data tab → Notifications |
+| ContactsSection | `src/pages/dashboard/components/ContactsSection.tsx` | Data tab → Contacts |
+| InputFilesSection | `src/pages/dashboard/components/InputFilesSection.tsx` | Data tab → Input Files |

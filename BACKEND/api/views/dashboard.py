@@ -22,9 +22,43 @@ from rest_framework.response import Response
 
 from api.activity_logger import log_activity, get_client_ip, get_user_agent
 from api.email_verification import verify_token, generate_verification_token, send_verification_email
-from api.models import DashUser, ActivityLog
+from api.models import DashUser, ActivityLog, Company
 from api.rate_limit import rate_limit, get_email_rate_limit_key
 from api.response import success_response, error_response
+
+
+# Company validation helpers
+def get_company_by_code(company_code: str):
+    """Get company by code, return None if not found or inactive"""
+    try:
+        return Company.objects.get(code=company_code.upper(), is_active=True)
+    except Company.DoesNotExist:
+        return None
+
+
+def can_user_access_company(user: DashUser, company_code: str) -> bool:
+    """Check if user can access a company (admins can access all, others only their own)"""
+    if user.access_level == 0:
+        # Admins can access all companies
+        return get_company_by_code(company_code) is not None
+    else:
+        # Non-admins can only access their own company
+        if not user.company:
+            return False
+        return user.company.code.upper() == company_code.upper()
+
+
+def get_user_company_devices(user: DashUser):
+    """Get devices for user's company (admins see all, others see only their company's devices)"""
+    from api.models import Device
+    if user.access_level == 0:
+        # Admins see all devices
+        return Device.objects.select_related('company').all()
+    else:
+        # Non-admins see only devices from their company
+        if not user.company:
+            return Device.objects.none()
+        return Device.objects.select_related('company').filter(company=user.company)
 
 # Dashboard Login Endpoint - Clean Implementation
 @csrf_exempt
@@ -1069,9 +1103,12 @@ def _dashboard_redirect(path_suffix='', origin_override=None, path_override=None
 @api_view(['GET'])
 def dashboard_users_list(request):
     """
-    List all dashboard users (admin-only).
+    List dashboard users filtered by company.
     
-    Request: GET /api/dashboard-users/?admin_email=admin@fastpay.com
+    Request: GET /api/dashboard-users/?admin_email=admin@fastpay.com&company_code=REDPAY (optional)
+    
+    - Admins (access_level=0) can see all users or filter by company_code
+    - Non-admins see only users from their own company
     
     Response (success):
     {
@@ -1082,6 +1119,8 @@ def dashboard_users_list(request):
                 "full_name": "John Doe",
                 "access_level": 0,
                 "status": "active",
+                "company_code": "REDPAY",
+                "company_name": "RedPay",
                 "assigned_device_count": 5
             }
         ]
@@ -1089,6 +1128,8 @@ def dashboard_users_list(request):
     """
     try:
         admin_email = (request.query_params.get('admin_email') or '').strip()
+        company_code = (request.query_params.get('company_code') or '').strip().upper()
+        
         if not admin_email:
             return Response(
                 {"success": False, "error": "admin_email query parameter is required"},
@@ -1096,20 +1137,43 @@ def dashboard_users_list(request):
             )
 
         try:
-            admin_user = DashUser.objects.get(email=admin_email)
+            admin_user = DashUser.objects.select_related('company').get(email=admin_email)
         except DashUser.DoesNotExist:
             return Response(
                 {"success": False, "error": "User not found"},
                 status=status.HTTP_404_NOT_FOUND
             )
 
+        # Require admin access
         if admin_user.access_level != 0:
             return Response(
                 {"success": False, "error": "Admin access required"},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        users = DashUser.objects.all().order_by('-created_at')
+        # Filter users by company
+        if admin_user.access_level == 0:
+            # Admins can see all users or filter by company_code
+            users = DashUser.objects.select_related('company').all()
+            if company_code:
+                try:
+                    company = Company.objects.get(code=company_code, is_active=True)
+                    users = users.filter(company=company)
+                except Company.DoesNotExist:
+                    return Response(
+                        {"success": False, "error": f"Company '{company_code}' not found"},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+        else:
+            # Non-admins see only users from their own company
+            if not admin_user.company:
+                return Response(
+                    {"success": True, "users": []},
+                    status=status.HTTP_200_OK
+                )
+            users = DashUser.objects.select_related('company').filter(company=admin_user.company)
+
+        users = users.order_by('-created_at')
         users_data = []
         for u in users:
             count = u.assigned_devices.count()
@@ -1118,6 +1182,8 @@ def dashboard_users_list(request):
                 "full_name": u.full_name or None,
                 "access_level": u.access_level,
                 "status": u.status,
+                "company_code": u.company.code if u.company else None,
+                "company_name": u.company.name if u.company else None,
                 "assigned_device_count": count,
             })
 
@@ -1136,21 +1202,24 @@ def dashboard_users_list(request):
 @api_view(['POST'])
 def devices_assign(request):
     """
-    Assign devices to a user (admin-only).
+    Allocate devices to a company (admin-only).
     
     Request: POST /api/devices/assign/
-    Body: {"admin_email": "admin@fastpay.com", "user_email": "redpay@fastpay.com", "device_ids": ["id1", "id2"]}
+    Body: {"admin_email": "admin@fastpay.com", "company_code": "REDPAY", "device_ids": ["id1", "id2"]}
+    
+    Note: Devices are now allocated to companies, not individual users. All users in the company
+    will automatically see these devices.
     """
     try:
         admin_email = (request.data.get('admin_email') or '').strip()
-        user_email = (request.data.get('user_email') or '').strip()
+        company_code = (request.data.get('company_code') or '').strip().upper()
         device_ids = request.data.get('device_ids') or []
         if not isinstance(device_ids, list):
             device_ids = []
 
-        if not admin_email or not user_email:
+        if not admin_email or not company_code:
             return Response(
-                {"success": False, "error": "admin_email and user_email are required"},
+                {"success": False, "error": "admin_email and company_code are required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -1167,37 +1236,40 @@ def devices_assign(request):
                 status=status.HTTP_403_FORBIDDEN
             )
 
+        # Get company
+        from api.models import Company, Device
         try:
-            target_user = DashUser.objects.get(email=user_email)
-        except DashUser.DoesNotExist:
+            company = Company.objects.get(code=company_code, is_active=True)
+        except Company.DoesNotExist:
             return Response(
-                {"success": False, "error": "Target user not found"},
+                {"success": False, "error": f"Company '{company_code}' not found or inactive"},
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        from api.models import Device
-        assigned = 0
+        # Allocate devices to company
+        allocated = 0
         for did in device_ids:
             if not did:
                 continue
             try:
                 device = Device.objects.get(device_id=str(did))
-                device.assigned_to.add(target_user)
-                assigned += 1
+                device.company = company
+                device.save(update_fields=['company'])
+                allocated += 1
             except Device.DoesNotExist:
                 pass
 
         log_activity(
             user_email=admin_email,
             activity_type='device_assignment',
-            description=f"Assigned {assigned} device(s) to {user_email}",
+            description=f"Allocated {allocated} device(s) to company {company_code}",
             ip_address=get_client_ip(request),
             user_agent=get_user_agent(request),
-            metadata={'user_email': user_email, 'assigned_count': assigned, 'device_ids': device_ids}
+            metadata={'company_code': company_code, 'allocated_count': allocated, 'device_ids': device_ids}
         )
 
         return Response(
-            {"success": True, "assigned_count": assigned, "message": f"Assigned {assigned} device(s) to {user_email}"},
+            {"success": True, "allocated_count": allocated, "message": f"Allocated {allocated} device(s) to company {company_code}"},
             status=status.HTTP_200_OK
         )
     except Exception as e:
@@ -1211,21 +1283,24 @@ def devices_assign(request):
 @api_view(['POST'])
 def devices_unassign(request):
     """
-    Unassign devices from a user (admin-only).
+    Unallocate devices from a company (admin-only).
     
     Request: POST /api/devices/unassign/
-    Body: {"admin_email": "admin@fastpay.com", "user_email": "redpay@fastpay.com", "device_ids": ["id1", "id2"]}
+    Body: {"admin_email": "admin@fastpay.com", "company_code": "REDPAY", "device_ids": ["id1", "id2"]}
+    
+    Note: Sets device.company to None, removing it from the company. Devices can be reallocated
+    to a different company using devices_assign.
     """
     try:
         admin_email = (request.data.get('admin_email') or '').strip()
-        user_email = (request.data.get('user_email') or '').strip()
+        company_code = (request.data.get('company_code') or '').strip().upper()
         device_ids = request.data.get('device_ids') or []
         if not isinstance(device_ids, list):
             device_ids = []
 
-        if not admin_email or not user_email:
+        if not admin_email or not company_code:
             return Response(
-                {"success": False, "error": "admin_email and user_email are required"},
+                {"success": False, "error": "admin_email and company_code are required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -1242,37 +1317,40 @@ def devices_unassign(request):
                 status=status.HTTP_403_FORBIDDEN
             )
 
+        # Verify company exists
+        from api.models import Company, Device
         try:
-            target_user = DashUser.objects.get(email=user_email)
-        except DashUser.DoesNotExist:
+            company = Company.objects.get(code=company_code, is_active=True)
+        except Company.DoesNotExist:
             return Response(
-                {"success": False, "error": "Target user not found"},
+                {"success": False, "error": f"Company '{company_code}' not found or inactive"},
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        from api.models import Device
-        unassigned = 0
+        # Unallocate devices from company (set company to None)
+        unallocated = 0
         for did in device_ids:
             if not did:
                 continue
             try:
-                device = Device.objects.get(device_id=str(did))
-                device.assigned_to.remove(target_user)
-                unassigned += 1
+                device = Device.objects.get(device_id=str(did), company=company)
+                device.company = None
+                device.save(update_fields=['company'])
+                unallocated += 1
             except Device.DoesNotExist:
                 pass
 
         log_activity(
             user_email=admin_email,
             activity_type='device_unassignment',
-            description=f"Unassigned {unassigned} device(s) from {user_email}",
+            description=f"Unallocated {unallocated} device(s) from company {company_code}",
             ip_address=get_client_ip(request),
             user_agent=get_user_agent(request),
-            metadata={'user_email': user_email, 'unassigned_count': unassigned, 'device_ids': device_ids}
+            metadata={'company_code': company_code, 'unallocated_count': unallocated, 'device_ids': device_ids}
         )
 
         return Response(
-            {"success": True, "unassigned_count": unassigned, "message": f"Unassigned {unassigned} device(s) from {user_email}"},
+            {"success": True, "unallocated_count": unallocated, "message": f"Unallocated {unallocated} device(s) from company {company_code}"},
             status=status.HTTP_200_OK
         )
     except Exception as e:
@@ -1287,7 +1365,11 @@ def devices_unassign(request):
 def dashboard_user_create(request):
     """
     Create a dashboard user (admin-only).
-    Body: {"admin_email": "...", "email": "...", "password": "...", "full_name": "...", "access_level": 0|1|2}
+    Body: {"admin_email": "...", "email": "...", "password": "...", "full_name": "...", "access_level": 0|1|2, "company_code": "REDPAY"}
+    
+    - Admins can create users for any company
+    - Non-admins (RedPay users) can only create users for their own company (REDPAY)
+    - company_code is required for non-admin users (access_level != 0)
     """
     try:
         admin_email = (request.data.get('admin_email') or '').strip()
@@ -1295,6 +1377,7 @@ def dashboard_user_create(request):
         password = request.data.get('password') or ''
         full_name = (request.data.get('full_name') or '').strip() or None
         access_level = request.data.get('access_level')
+        company_code = (request.data.get('company_code') or '').strip().upper()
         if access_level is not None:
             access_level = int(access_level)
 
@@ -1310,17 +1393,48 @@ def dashboard_user_create(request):
             )
 
         try:
-            admin_user = DashUser.objects.get(email=admin_email)
+            admin_user = DashUser.objects.select_related('company').get(email=admin_email)
         except DashUser.DoesNotExist:
             return Response(
                 {"success": False, "error": "Admin user not found"},
                 status=status.HTTP_404_NOT_FOUND
             )
-        if admin_user.access_level != 0:
-            return Response(
-                {"success": False, "error": "Admin access required"},
-                status=status.HTTP_403_FORBIDDEN
-            )
+        
+        # Determine company for new user
+        target_company = None
+        if admin_user.access_level == 0:
+            # Admin can create users for any company
+            if company_code:
+                try:
+                    target_company = Company.objects.get(code=company_code, is_active=True)
+                except Company.DoesNotExist:
+                    return Response(
+                        {"success": False, "error": f"Company '{company_code}' not found or inactive"},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+            # If no company_code provided for admin, default to REDPAY
+            if not target_company:
+                try:
+                    target_company = Company.objects.get(code='REDPAY', is_active=True)
+                except Company.DoesNotExist:
+                    return Response(
+                        {"success": False, "error": "Default company REDPAY not found"},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+        else:
+            # Non-admin users can only create users for their own company
+            if not admin_user.company:
+                return Response(
+                    {"success": False, "error": "Your account is not assigned to a company"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            target_company = admin_user.company
+            # Validate company_code matches (if provided)
+            if company_code and company_code != target_company.code:
+                return Response(
+                    {"success": False, "error": f"You can only create users for your company ({target_company.code})"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
 
         if DashUser.objects.filter(email=email).exists():
             return Response(
@@ -1333,6 +1447,7 @@ def dashboard_user_create(request):
             full_name=full_name,
             access_level=access_level,
             status='active',
+            company=target_company,
         )
         user.set_password(password)
         user.save()
@@ -1340,10 +1455,10 @@ def dashboard_user_create(request):
         log_activity(
             user_email=admin_email,
             activity_type='user_created',
-            description=f"Created user {email}",
+            description=f"Created user {email} in company {target_company.code}",
             ip_address=get_client_ip(request),
             user_agent=get_user_agent(request),
-            metadata={'created_email': email, 'access_level': access_level}
+            metadata={'created_email': email, 'access_level': access_level, 'company_code': target_company.code}
         )
 
         return Response(
@@ -1354,6 +1469,8 @@ def dashboard_user_create(request):
                     "full_name": user.full_name,
                     "access_level": user.access_level,
                     "status": user.status,
+                    "company_code": user.company.code if user.company else None,
+                    "company_name": user.company.name if user.company else None,
                 }
             },
             status=status.HTTP_201_CREATED
@@ -1369,8 +1486,11 @@ def dashboard_user_create(request):
 @api_view(['POST'])
 def dashboard_user_update(request):
     """
-    Update a dashboard user (admin-only).
-    Body: {"admin_email": "...", "email": "...", "full_name": "...", "access_level": 0|1|2, "status": "active"|"inactive"|"suspended"}
+    Update a dashboard user.
+    Body: {"admin_email": "...", "email": "...", "full_name": "...", "access_level": 0|1|2, "status": "active"|"inactive"|"suspended", "company_code": "REDPAY"}
+    
+    - Admins can update any user and change company
+    - Non-admins can only update users in their own company
     """
     try:
         admin_email = (request.data.get('admin_email') or '').strip()
@@ -1378,6 +1498,7 @@ def dashboard_user_update(request):
         full_name = request.data.get('full_name')
         access_level = request.data.get('access_level')
         status_val = request.data.get('status')
+        company_code = (request.data.get('company_code') or '').strip().upper()
 
         if not admin_email or not email:
             return Response(
@@ -1386,25 +1507,48 @@ def dashboard_user_update(request):
             )
 
         try:
-            admin_user = DashUser.objects.get(email=admin_email)
+            admin_user = DashUser.objects.select_related('company').get(email=admin_email)
         except DashUser.DoesNotExist:
             return Response(
                 {"success": False, "error": "Admin user not found"},
                 status=status.HTTP_404_NOT_FOUND
             )
-        if admin_user.access_level != 0:
-            return Response(
-                {"success": False, "error": "Admin access required"},
-                status=status.HTTP_403_FORBIDDEN
-            )
 
         try:
-            user = DashUser.objects.get(email=email)
+            user = DashUser.objects.select_related('company').get(email=email)
         except DashUser.DoesNotExist:
             return Response(
                 {"success": False, "error": "User not found"},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+        # Check permissions: non-admins can only update users in their own company
+        if admin_user.access_level != 0:
+            if not admin_user.company or user.company != admin_user.company:
+                return Response(
+                    {"success": False, "error": "You can only update users in your own company"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+        # Update company if provided
+        if company_code:
+            if admin_user.access_level == 0:
+                # Admins can change company
+                try:
+                    new_company = Company.objects.get(code=company_code, is_active=True)
+                    user.company = new_company
+                except Company.DoesNotExist:
+                    return Response(
+                        {"success": False, "error": f"Company '{company_code}' not found or inactive"},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+            else:
+                # Non-admins cannot change company
+                if company_code != (user.company.code if user.company else ''):
+                    return Response(
+                        {"success": False, "error": "You cannot change user's company"},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
 
         if full_name is not None:
             user.full_name = (str(full_name).strip() or None)
@@ -1415,7 +1559,10 @@ def dashboard_user_update(request):
         if status_val is not None and str(status_val) in ['active', 'inactive', 'suspended']:
             user.status = str(status_val)
 
-        user.save(update_fields=['full_name', 'access_level', 'status', 'updated_at'])
+        update_fields = ['full_name', 'access_level', 'status', 'updated_at']
+        if company_code:
+            update_fields.append('company')
+        user.save(update_fields=update_fields)
 
         log_activity(
             user_email=admin_email,
@@ -1423,7 +1570,7 @@ def dashboard_user_update(request):
             description=f"Updated user {email}",
             ip_address=get_client_ip(request),
             user_agent=get_user_agent(request),
-            metadata={'updated_email': email}
+            metadata={'updated_email': email, 'company_code': user.company.code if user.company else None}
         )
 
         return Response(
@@ -1434,6 +1581,8 @@ def dashboard_user_update(request):
                     "full_name": user.full_name,
                     "access_level": user.access_level,
                     "status": user.status,
+                    "company_code": user.company.code if user.company else None,
+                    "company_name": user.company.name if user.company else None,
                 }
             },
             status=status.HTTP_200_OK

@@ -9,9 +9,8 @@ RUN npm ci
 # Copy application source
 COPY . .
 
-# Build-time configuration for Vite
-# These are passed as environment variables during the build so Vite can
-# pick them up via import.meta.env.*
+# Build-time configuration for Vite (VITE_API_BASE_URL required for production)
+# Pass when building: docker build --build-arg VITE_API_BASE_URL=https://api.yourdomain.com/api ...
 ARG VITE_API_BASE_URL
 ARG VITE_BASE_PATH=/
 ARG VITE_REDPAY_ONLY=true
@@ -20,7 +19,7 @@ ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 ENV VITE_BASE_PATH=${VITE_BASE_PATH}
 ENV VITE_REDPAY_ONLY=${VITE_REDPAY_ONLY}
 
-# Build the production bundle
+# Build the production bundle (fails with clear error if VITE_API_BASE_URL is missing)
 RUN npm run build
 
 FROM nginx:1.27-alpine AS runner

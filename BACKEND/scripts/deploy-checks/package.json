@@ -1,0 +1,13 @@
+{
+  "name": "fastpay-deploy-checks",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Post-deploy checks: headless browser console verification for dashboard URLs",
+  "scripts": {
+    "check:dashboard": "node check-dashboard-console.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}

@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type ResolvedConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 import { readFileSync, writeFileSync } from 'fs'
@@ -63,6 +63,22 @@ function fixChunkOrder() {
   }
 }
 
+// Fail production build if required env is missing (clearer than runtime error)
+function requireProductionEnv() {
+  return {
+    name: 'require-production-env',
+    configResolved(config: ResolvedConfig) {
+      if (config.mode !== 'production') return
+      const base = process.env.VITE_API_BASE_URL ?? ''
+      if (!base.trim()) {
+        throw new Error(
+          'VITE_API_BASE_URL is required for production builds. Set it in .env.production or pass it when building (e.g. VITE_API_BASE_URL=https://api.example.com/api npm run build, or docker build --build-arg VITE_API_BASE_URL=...).'
+        )
+      }
+    },
+  }
+}
+
 // Get auth token from environment variable (for dev proxy)
 const BLACKSMS_AUTH_TOKEN = process.env.VITE_BLACKSMS_AUTH_TOKEN || ''
 
@@ -75,7 +91,7 @@ const BASE_PATH = process.env.VITE_BASE_PATH || (process.env.NODE_ENV === 'produ
 // https://vite.dev/config/
 export default defineConfig({
   base: BASE_PATH,
-  plugins: [react(), fixChunkOrder()],
+  plugins: [requireProductionEnv(), react(), fixChunkOrder()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

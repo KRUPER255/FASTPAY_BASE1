@@ -14,7 +14,9 @@ Table.displayName = 'Table'
 const TableHeader = forwardRef<
   HTMLTableSectionElement,
   HTMLAttributes<HTMLTableSectionElement>
->(({ className, ...props }, ref) => <thead ref={ref} className={cn(className)} {...props} />)
+>(({ className, ...props }, ref) => (
+  <thead ref={ref} className={cn('sticky top-0 z-10 bg-background', className)} {...props} />
+))
 TableHeader.displayName = 'TableHeader'
 
 const TableBody = forwardRef<
@@ -61,7 +63,7 @@ const TableHead = forwardRef<
   <th
     ref={ref}
     className={cn(
-      'h-12 px-3 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:w-px [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-0.5',
+      'h-12 px-3 text-left align-middle font-medium text-muted-foreground bg-background [&:has([role=checkbox])]:w-px [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-0.5',
       className
     )}
     {...props}

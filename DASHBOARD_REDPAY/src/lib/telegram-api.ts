@@ -313,3 +313,63 @@ export async function getBotInfo(id: number): Promise<{
 }> {
   return apiCall(`/telegram-bots/${id}/get-me/`)
 }
+
+export interface TelegramUserLink {
+  id: number
+  company: number
+  company_code: string
+  user: number | null
+  telegram_chat_id: string
+  telegram_bot: number
+  telegram_bot_name: string
+  link_token_expires_at: string | null
+  opted_in_alerts: boolean
+  opted_in_reports: boolean
+  opted_in_device_events: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface TelegramUserLinkCreateResponse {
+  id: number
+  link_token: string
+  expires_at: string
+  deep_link: string | null
+  bot_username: string | null
+}
+
+export async function listTelegramLinks(userEmail: string): Promise<{ results: TelegramUserLink[] }> {
+  const data = await apiCall<{ results: TelegramUserLink[] }>(
+    `/telegram-links/?user_email=${encodeURIComponent(userEmail)}`
+  )
+  return Array.isArray((data as any).results) ? data : { results: [] }
+}
+
+export async function createTelegramLink(
+  userEmail: string,
+  telegramBotId: number
+): Promise<TelegramUserLinkCreateResponse> {
+  return apiCall<TelegramUserLinkCreateResponse>('/telegram-links/', {
+    method: 'POST',
+    body: JSON.stringify({ user_email: userEmail, telegram_bot_id: telegramBotId }),
+  })
+}
+
+export async function updateTelegramLink(
+  id: number,
+  data: { opted_in_alerts?: boolean; opted_in_reports?: boolean; opted_in_device_events?: boolean }
+): Promise<TelegramUserLink> {
+  return apiCall<TelegramUserLink>(`/telegram-links/${id}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteTelegramLink(id: number): Promise<void> {
+  const url = getApiUrl(`/telegram-links/${id}/`)
+  const response = await fetch(url, { method: 'DELETE', credentials: 'include' })
+  if (!response.ok && response.status !== 204) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err.error || err.detail || `Delete failed: ${response.status}`)
+  }
+}

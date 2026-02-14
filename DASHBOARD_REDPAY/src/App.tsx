@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { isAuthenticated, getLoginRedirectPath, syncThemeFromBackend } from '@/lib/auth'
+import { isAuthenticated, getLoginRedirectPath, syncThemeFromBackend, clearSession, getLoginUrl } from '@/lib/auth'
 import { Toaster } from '@/component/ui/toaster'
 // Import user access utility (makes it available in browser console)
 import '@/utils/updateUserAccess'
@@ -21,13 +21,6 @@ const AxisUrgentTempRoute = lazy(() =>
     return { default: () => <div className="p-4 text-destructive">Failed to load page. Check console (F12).</div> }
   })
 )
-const RedPayAxisRoute = lazy(() =>
-  import('@/pages/axisurgenttemp/RedPayAxisRoute').catch(err => {
-    console.error('Failed to load RedPayAxisRoute', err)
-    return { default: () => <div className="p-4 text-destructive">Failed to load page. Check console (F12).</div> }
-  })
-)
-
 // Styled dashboard routes
 const StylesIndex = lazy(() => import('@/pages/styles/StylesIndex'))
 const ShadcnRoute = lazy(() => import('@/pages/styles/shadcn/ShadcnRoute'))
@@ -56,7 +49,9 @@ function App() {
   }, [])
 
   const handleLogout = () => {
+    clearSession()
     setIsLoggedIn(false)
+    window.location.href = getLoginUrl()
   }
 
   // Get base path and remove trailing slash for BrowserRouter basename
@@ -94,9 +89,6 @@ function App() {
           <Route path="/AXISURGENTFIX" element={<AxisUrgentRoute />} />
           {/* AXISURGENT Temp - same table + Send SMS button + Firebase observer */}
           <Route path="/axisurgenttemp" element={<AxisUrgentTempRoute />} />
-          {/* RedPay Axis - requires authentication */}
-          <Route path="/redpay/axis" element={<RedPayAxisRoute />} />
-
           {/* Gmail OAuth Callback - requires authentication */}
           <Route path="/auth/google/callback" element={<GmailCallback />} />
 

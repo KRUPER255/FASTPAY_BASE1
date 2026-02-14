@@ -20,6 +20,8 @@ interface DialogContentProps extends Omit<
   | 'onAnimationIteration'
 > {
   children: ReactNode
+  /** 'center' = centered modal (default). 'end' = right side of viewport, slide-in from right. */
+  position?: 'center' | 'end'
 }
 
 const Dialog = ({ open, onOpenChange, children }: DialogProps) => {
@@ -61,16 +63,32 @@ const Dialog = ({ open, onOpenChange, children }: DialogProps) => {
 }
 
 const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
-  ({ className, children, ...props }, ref) => {
+  ({ className, children, position = 'center', ...props }, ref) => {
+    const isEnd = position === 'end'
     return (
       <motion.div
         ref={ref}
-        initial={{ opacity: 0, scale: 0.95, x: '-50%', y: '-50%' }}
-        animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
-        exit={{ opacity: 0, scale: 0.95, x: '-50%', y: '-50%' }}
+        initial={
+          isEnd
+            ? { opacity: 0, x: 24 }
+            : { opacity: 0, scale: 0.95, x: '-50%', y: '-50%' }
+        }
+        animate={
+          isEnd
+            ? { opacity: 1, x: 0 }
+            : { opacity: 1, scale: 1, x: '-50%', y: '-50%' }
+        }
+        exit={
+          isEnd
+            ? { opacity: 0, x: 24 }
+            : { opacity: 0, scale: 0.95, x: '-50%', y: '-50%' }
+        }
         transition={{ duration: 0.2 }}
         className={cn(
-          'fixed left-1/2 top-1/2 z-[9999] grid w-full max-w-lg gap-4 border border-border bg-background p-6 shadow-lg duration-200 sm:rounded-lg',
+          'fixed z-[9999] grid w-full max-w-lg gap-4 border border-border bg-background p-6 shadow-lg duration-200 sm:rounded-lg',
+          isEnd
+            ? 'right-6 top-1/2 -translate-y-1/2 left-auto'
+            : 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
           className
         )}
         {...props}

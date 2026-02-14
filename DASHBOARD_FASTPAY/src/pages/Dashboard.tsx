@@ -80,15 +80,15 @@ import { BreadcrumbNav } from '@/component/BreadcrumbNav'
 import { FloatingActionButton } from '@/component/FloatingActionButton'
 import { Home } from 'lucide-react'
 import { Badge } from '@/component/ui/badge'
-import { DeviceSummaryCards } from './dashboard/components/DeviceSummaryCards'
-import type { DeviceSubTab } from './dashboard/components/DeviceSubTabs'
+import { DeviceSectionSummaryCards } from './dashboard/components/DeviceSectionSummaryCards'
+import type { DeviceSectionTab } from './dashboard/components/DeviceSectionTabs'
 
 // Lazy load all Dashboard sections for code splitting
 const MessagesSection = lazy(() => import('./dashboard/components/MessagesSection').then(m => ({ default: m.MessagesSection })))
 const NotificationsSection = lazy(() => import('./dashboard/components/NotificationsSection').then(m => ({ default: m.NotificationsSection })))
 const ContactsSection = lazy(() => import('./dashboard/components/ContactsSection').then(m => ({ default: m.ContactsSection })))
 const OverviewSection = lazy(() => import('./dashboard/components/OverviewSection').then(m => ({ default: m.OverviewSection })))
-const DevicesSection = lazy(() => import('./dashboard/components/DevicesSection').then(m => ({ default: m.DevicesSection })))
+const DeviceListSection = lazy(() => import('./dashboard/components/DeviceListSection').then(m => ({ default: m.DeviceListSection })))
 const AnalyticsSection = lazy(() => import('./dashboard/components/AnalyticsSection').then(m => ({ default: m.AnalyticsSection })))
 const InputFilesSection = lazy(() => import('./dashboard/components/InputFilesSection').then(m => ({ default: m.InputFilesSection })))
 const CommandsSection = lazy(() => import('./dashboard/components/CommandsSection').then(m => ({ default: m.CommandsSection })))
@@ -113,7 +113,7 @@ const AutoReplyPanel = lazy(() => import('./dashboard/components/AutoReplyPanel'
 const BulkOperationsPanel = lazy(() => import('./dashboard/components/BulkOperationsPanel').then(m => ({ default: m.BulkOperationsPanel })))
 const MessageTemplatesPanel = lazy(() => import('./dashboard/components/MessageTemplatesPanel').then(m => ({ default: m.MessageTemplatesPanel })))
 const MessageAnalyticsPanel = lazy(() => import('./dashboard/components/MessageAnalyticsPanel').then(m => ({ default: m.MessageAnalyticsPanel })))
-const DeviceSubTabs = lazy(() => import('./dashboard/components/DeviceSubTabs').then(m => ({ default: m.DeviceSubTabs })))
+const DeviceSectionTabs = lazy(() => import('./dashboard/components/DeviceSectionTabs').then(m => ({ default: m.DeviceSectionTabs })))
 
 // Lazy load ReactQuill (only when instruction dialog is opened)
 const ReactQuill = lazy(() => import('react-quill-new').then(m => ({ default: m.default })))
@@ -397,7 +397,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     | 'export'
     | 'remote-messages'
 
-  const [deviceSubTab, setDeviceSubTab] = useState<DeviceSubTab>('message')
+  const [deviceSubTab, setDeviceSubTab] = useState<DeviceSectionTab>('message')
   const [dataSubTab, setDataSubTab] = useState<DataSubTab>('notifications')
   
   useEffect(() => {
@@ -429,11 +429,13 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
 
     const params = new URLSearchParams(location.search)
-    if (params.get('tab') !== activeTab) {
+    const currentTab = params.get('tab')
+    // Only update URL if tab actually changed (prevents navigation loops)
+    if (currentTab !== activeTab) {
       params.set('tab', activeTab)
       navigate({ search: params.toString() }, { replace: true })
     }
-  }, [activeTab, location.search, navigate])
+  }, [activeTab, navigate]) // Removed location.search to prevent navigation loops
   const [viewMode, setViewMode] = useState<'tabs' | 'widgets'>(() => {
     const saved = localStorage.getItem('dashboard-viewMode')
     return saved === 'widgets' || saved === 'tabs' ? saved : 'tabs'
@@ -2018,7 +2020,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             deviceStatus === 'online' ? 'Online' : deviceStatus === 'offline' ? 'Offline' : 'Checking'
           
           return (
-            <DeviceSummaryCards
+            <DeviceSectionSummaryCards
               bankCard={bankCard}
               loadingBankCard={loadingBankCard}
               deviceStatus={deviceStatus}
@@ -2054,7 +2056,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
               )}
               {/* Device Sub-Tabs - Show whenever a device is selected */}
               {currentDeviceId && (
-                <DeviceSubTabs
+                <DeviceSectionTabs
                   activeTab={deviceSubTab}
                   onTabChange={setDeviceSubTab}
                   deviceId={currentDeviceId}
@@ -2260,7 +2262,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                     />
                   ) : activeTab === 'devices' ? (
                     <Suspense fallback={<SectionLoader />}>
-                      <DevicesSection
+                      <DeviceListSection
                         onDeviceSelect={deviceId => {
                           handleDeviceSelect(deviceId)
                           setActiveTab('sms')

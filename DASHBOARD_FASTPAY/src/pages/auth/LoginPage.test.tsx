@@ -13,8 +13,8 @@ vi.mock('@/lib/auth', () => ({
   getLoginRedirectPath: vi.fn(),
 }))
 
-// Mock NeumorphismLogin component
-vi.mock('@/component/ui/neumorphism-login', () => ({
+// Mock LoginCard component
+vi.mock('@/component/ui/login-card', () => ({
   default: () => <div>Login Form</div>,
 }))
 

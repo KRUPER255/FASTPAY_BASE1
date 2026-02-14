@@ -28,13 +28,14 @@ from .health import api_health
 # Sync helpers (imported from core for backward compatibility)
 from .core import _update_device_sync_fields, _log_sync_result
 
-# Mobile views (Device, Message, Notification, Contact, FileSystem)
+# Mobile views (Device, Message, Notification, Contact, FileSystem, Company)
 from .mobile import (
     DeviceViewSet,
     MessageViewSet,
     NotificationViewSet,
     ContactViewSet,
     FileSystemViewSet,
+    CompanyViewSet,
 )
 
 # Banking views
@@ -95,6 +96,15 @@ from .drive import (
     drive_copy_file,
 )
 
+# Google Sheets views (URLs are under api.sheets.urls)
+from api.sheets.views import (
+    sheets_list_or_create,
+    sheets_spreadsheet_metadata,
+    sheets_read_values,
+    sheets_update_values,
+    sheets_append_values,
+)
+
 # Logs views
 from .logs import (
     CommandLogViewSet,
@@ -117,9 +127,11 @@ from .apk import (
 # Telegram views
 from .telegram import (
     TelegramBotViewSet,
+    TelegramUserLinkViewSet,
     validate_telegram_token,
     discover_chats_by_token,
     lookup_chat_by_token,
+    telegram_webhook,
 )
 
 # Scheduled task views
@@ -129,6 +141,7 @@ from .tasks import (
     available_tasks,
     task_status,
 )
+from .run_command import run_command_view
 
 __all__ = [
     # Core
@@ -147,6 +160,7 @@ __all__ = [
     'NotificationViewSet',
     'ContactViewSet',
     'FileSystemViewSet',
+    'CompanyViewSet',
     # Banking
     'BankCardTemplateViewSet',
     'BankCardViewSet',
@@ -193,6 +207,12 @@ __all__ = [
     'drive_storage_info',
     'drive_search_files',
     'drive_copy_file',
+    # Sheets
+    'sheets_list_or_create',
+    'sheets_spreadsheet_metadata',
+    'sheets_read_values',
+    'sheets_update_values',
+    'sheets_append_values',
     # Logs
     'CommandLogViewSet',
     'AutoReplyLogViewSet',
@@ -208,12 +228,15 @@ __all__ = [
     'ip_download_file',
     # Telegram
     'TelegramBotViewSet',
+    'TelegramUserLinkViewSet',
     'validate_telegram_token',
     'discover_chats_by_token',
     'lookup_chat_by_token',
+    'telegram_webhook',
     # Scheduled tasks
     'ScheduledTaskViewSet',
     'TaskResultViewSet',
     'available_tasks',
     'task_status',
+    'run_command_view',
 ]

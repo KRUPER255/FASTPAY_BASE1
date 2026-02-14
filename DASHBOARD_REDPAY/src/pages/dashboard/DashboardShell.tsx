@@ -20,6 +20,7 @@ import { BankcardSectionView } from '@/pages/dashboard/views/BankcardSectionView
 import { UtilitySectionView } from '@/pages/dashboard/views/UtilitySectionView'
 import { ApiSectionView } from '@/pages/dashboard/views/ApiSectionView'
 import { ProfileSectionView } from '@/pages/dashboard/views/ProfileSectionView'
+import { UserManagementSectionView } from '@/pages/dashboard/views/UserManagementSectionView'
 
 const VALID_SECTIONS: DashboardSectionType[] = [
   'device',
@@ -27,6 +28,7 @@ const VALID_SECTIONS: DashboardSectionType[] = [
   'utility',
   'api',
   'profile',
+  'users',
 ]
 
 function readStoredSection(): DashboardSectionType {
@@ -194,6 +196,12 @@ export function DashboardShell({
               userEmail={userEmail}
               userAccessLevel={userAccessLevel}
               onLogout={onLogout}
+            />
+          )
+        case 'users':
+          return (
+            <UserManagementSectionView
+              sessionEmail={userEmail}
             />
           )
         default:

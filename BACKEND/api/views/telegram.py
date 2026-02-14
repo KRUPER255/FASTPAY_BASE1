@@ -1,21 +1,34 @@
 """
 Telegram views: TelegramBot ViewSet and related endpoints
 
-These views handle Telegram bot credential management and testing.
+These views handle Telegram bot credential management and testing,
+and the webhook for receiving updates from Telegram (interactive bot).
 """
 import logging
+import secrets
+from datetime import timedelta
+
 import requests
+from django.conf import settings
+from django.http import JsonResponse
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from api.models import TelegramBot
+from api.models import TelegramBot, TelegramUserLink, DashUser
+from api.utils.telegram import TelegramWebhook, send_message
 from api.serializers import (
     TelegramBotSerializer,
     TelegramBotListSerializer,
     TelegramBotCreateSerializer,
     TelegramBotUpdateSerializer,
     TelegramBotTestSerializer,
+    TelegramUserLinkSerializer,
+    TelegramUserLinkCreateSerializer,
+    TelegramUserLinkUpdateSerializer,
 )
 from api.pagination import SkipLimitPagination
 
@@ -678,6 +691,85 @@ def discover_chats_by_token(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+class TelegramUserLinkViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for per-company Telegram notification links.
+    List/filter by user_email (query). Create returns link_token and deep_link for /link command.
+    """
+    serializer_class = TelegramUserLinkSerializer
+    pagination_class = SkipLimitPagination
+
+    def get_queryset(self):
+        qs = TelegramUserLink.objects.select_related('company', 'user', 'telegram_bot')
+        user_email = self.request.query_params.get('user_email', '').strip()
+        if user_email:
+            try:
+                dash_user = DashUser.objects.get(email=user_email)
+                if dash_user.company_id:
+                    qs = qs.filter(company_id=dash_user.company_id)
+                else:
+                    qs = qs.none()
+            except DashUser.DoesNotExist:
+                qs = qs.none()
+        return qs.order_by('-updated_at')
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return TelegramUserLinkCreateSerializer
+        if self.action in ['update', 'partial_update']:
+            return TelegramUserLinkUpdateSerializer
+        return TelegramUserLinkSerializer
+
+    def create(self, request, *args, **kwargs):
+        ser = TelegramUserLinkCreateSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        user_email = ser.validated_data['user_email']
+        telegram_bot_id = ser.validated_data['telegram_bot_id']
+        try:
+            dash_user = DashUser.objects.get(email=user_email)
+        except DashUser.DoesNotExist:
+            return Response(
+                {"error": "User not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        if not dash_user.company_id:
+            return Response(
+                {"error": "User has no company assigned"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        bot = TelegramBot.objects.filter(id=telegram_bot_id, is_active=True).first()
+        if not bot:
+            return Response(
+                {"error": "Telegram bot not found or inactive"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        link_token = secrets.token_urlsafe(24)
+        expires_at = timezone.now() + timedelta(minutes=15)
+        link = TelegramUserLink.objects.create(
+            company_id=dash_user.company_id,
+            user=dash_user,
+            telegram_bot=bot,
+            telegram_chat_id='',
+            link_token=link_token,
+            link_token_expires_at=expires_at,
+            opted_in_alerts=True,
+            opted_in_reports=False,
+            opted_in_device_events=True,
+        )
+        bot_username = (bot.bot_username or '').strip()
+        deep_link = f"https://t.me/{bot_username}?start=link_{link_token}" if bot_username else None
+        return Response({
+            "id": link.id,
+            "link_token": link_token,
+            "expires_at": expires_at.isoformat(),
+            "deep_link": deep_link,
+            "bot_username": bot_username or None,
+        }, status=status.HTTP_201_CREATED)
+
+    def perform_update(self, serializer):
+        serializer.save()
+
+
 @api_view(['POST'])
 def lookup_chat_by_token(request):
     """
@@ -738,9 +830,121 @@ def lookup_chat_by_token(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+def _make_webhook_for_bot(bot_id: int):
+    """
+    Build a TelegramWebhook with command handlers that send replies using the given bot.
+    Used by the webhook view to process updates for a specific TelegramBot.
+    """
+    webhook = TelegramWebhook()
+
+    @webhook.command("start")
+    def cmd_start(update, chat_id, args):
+        send_message(
+            "Hello! I'm the FastPay bot. Use /help to see available commands.",
+            chat_id=chat_id,
+            bot_id=bot_id,
+        )
+
+    @webhook.command("help")
+    def cmd_help(update, chat_id, args):
+        send_message(
+            "Commands:\n"
+            "/start - Welcome message\n"
+            "/help - This message\n"
+            "/link [token] - Link this chat to your account (token from dashboard)\n"
+            "/status - Check connection status",
+            chat_id=chat_id,
+            bot_id=bot_id,
+        )
+
+    @webhook.command("link")
+    def cmd_link(update, chat_id, args):
+        if not args or not args.strip():
+            send_message(
+                "Usage: /link <token>\nGet your link token from the dashboard (Telegram notifications section).",
+                chat_id=chat_id,
+                bot_id=bot_id,
+            )
+            return
+        token = args.strip()
+        if token.startswith("link_"):
+            token = token[5:]
+        link = TelegramUserLink.objects.filter(
+            link_token=token,
+            telegram_bot_id=bot_id,
+        ).first()
+        if not link:
+            send_message(
+                "Invalid or expired link token. Get a new token from the dashboard.",
+                chat_id=chat_id,
+                bot_id=bot_id,
+            )
+            return
+        if link.link_token_expires_at and timezone.now() > link.link_token_expires_at:
+            send_message(
+                "This link token has expired. Get a new token from the dashboard.",
+                chat_id=chat_id,
+                bot_id=bot_id,
+            )
+            return
+        link.telegram_chat_id = chat_id
+        link.link_token = None
+        link.link_token_expires_at = None
+        link.save(update_fields=['telegram_chat_id', 'link_token', 'link_token_expires_at', 'updated_at'])
+        send_message(
+            "Linked successfully. You will receive notifications here according to your dashboard preferences.",
+            chat_id=chat_id,
+            bot_id=bot_id,
+        )
+
+    @webhook.command("status")
+    def cmd_status(update, chat_id, args):
+        send_message(
+            "Bot is connected. You can receive alerts here when configured.",
+            chat_id=chat_id,
+            bot_id=bot_id,
+        )
+
+    return webhook
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def telegram_webhook(request, bot_id):
+    """
+    Receive webhook updates from Telegram for the bot identified by bot_id.
+
+    Telegram sends POST with JSON body (Update object). Optional security:
+    set TELEGRAM_WEBHOOK_SECRET in settings; Telegram will send the same value
+    in the X-Telegram-Bot-Api-Secret-Token header when you set it in setWebhook.
+
+    URL: POST /api/telegram/webhook/<bot_id>/
+    """
+    secret = getattr(settings, "TELEGRAM_WEBHOOK_SECRET", "") or ""
+    if secret:
+        header_token = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+        if header_token != secret:
+            logger.warning("Telegram webhook rejected: secret token mismatch")
+            return JsonResponse({"ok": False}, status=403)
+
+    bot = TelegramBot.objects.filter(id=bot_id, is_active=True).first()
+    if not bot:
+        logger.warning("Telegram webhook: bot_id=%s not found or inactive", bot_id)
+        return JsonResponse({"ok": False}, status=404)
+
+    try:
+        webhook = _make_webhook_for_bot(bot_id)
+        webhook.process(request.body)
+    except Exception as exc:
+        logger.exception("Telegram webhook processing error: %s", exc)
+        # Still return 200 so Telegram does not retry indefinitely
+    return JsonResponse({"ok": True})
+
+
 __all__ = [
     'TelegramBotViewSet',
     'validate_telegram_token',
     'discover_chats_by_token',
     'lookup_chat_by_token',
+    'telegram_webhook',
 ]

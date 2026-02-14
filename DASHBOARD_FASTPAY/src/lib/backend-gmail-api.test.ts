@@ -103,5 +103,4 @@ describe('backend-gmail-api', () => {
     expect(detail.attachments).toHaveLength(1)
     expect(detail.attachments[0].filename).toBe('file.txt')
   })
-}
-
+})

@@ -2,12 +2,9 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import './styles/neumorphism.css'
 import App from './App.tsx'
 import RedPayApp from './RedPayApp.tsx'
 import { initTheme } from '@/lib/theme'
-import { NeumorphismProvider } from '@/context/NeumorphismContext'
-
 const rootElement = document.getElementById('root')
 if (!rootElement) {
   throw new Error('Root element not found')
@@ -21,8 +18,6 @@ const AppComponent = REDPAY_ONLY ? RedPayApp : App
 
 createRoot(rootElement).render(
   <StrictMode>
-    <NeumorphismProvider>
-      <AppComponent />
-    </NeumorphismProvider>
+    <AppComponent />
   </StrictMode>
 )

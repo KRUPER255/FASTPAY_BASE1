@@ -1,6 +1,6 @@
 import { Navigate, useNavigate } from 'react-router-dom'
 import { isAuthenticated } from '@/lib/auth'
-import { ArrowRight, Palette, BarChart3, Sparkles, Home, LogOut } from 'lucide-react'
+import { ArrowRight, Palette, BarChart3, Sparkles, Home, LogOut, Layout } from 'lucide-react'
 
 interface StylesIndexProps {
   onLogout?: () => void
@@ -49,6 +49,16 @@ export default function StylesIndex({ onLogout }: StylesIndexProps) {
       features: ['Frosted Glass Cards', 'Animated Backgrounds', 'Credit Card UI', 'Spending Charts'],
       preview: 'bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950',
     },
+    {
+      id: 'dribbble',
+      name: 'Dribbble-style card',
+      description: 'Animated card with smooth entrance, hover lift and staggered content. Reference-style UI component.',
+      icon: Layout,
+      path: '/styles/dribbble',
+      gradient: 'from-pink-500 to-rose-600',
+      features: ['Entrance animation', 'Hover lift + shadow', 'Staggered list items'],
+      preview: 'bg-gradient-to-br from-slate-900 to-slate-800',
+    },
   ]
 
   return (
@@ -85,7 +95,7 @@ export default function StylesIndex({ onLogout }: StylesIndexProps) {
         </div>
 
         {/* Style cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {styles.map((style) => (
             <div
               key={style.id}

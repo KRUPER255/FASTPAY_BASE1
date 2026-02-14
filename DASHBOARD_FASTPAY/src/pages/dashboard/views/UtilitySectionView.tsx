@@ -1,6 +1,6 @@
 import React, { useState, lazy, Suspense } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/component/ui/tabs'
-import { Download, AlertTriangle, Activity, Send, BarChart3, FileText } from 'lucide-react'
+import { Download, AlertTriangle, Activity, Send, BarChart3, FileText, Clock, MessageSquare, FileSpreadsheet } from 'lucide-react'
 import type { SMS, Notification, Contact } from '@/pages/dashboard/types'
 
 const SectionLoader = () => (
@@ -35,14 +35,32 @@ const AnalyticsSection = lazy(() =>
 const ApiLogSection = lazy(() =>
   import('@/pages/dashboard/components/ApiLogSection').then(m => ({ default: m.ApiLogSection }))
 )
+const ScheduledTasksSection = lazy(() =>
+  import('@/pages/dashboard/components/ScheduledTasksSection').then(m => ({
+    default: m.ScheduledTasksSection,
+  }))
+)
+const MyTelegramSection = lazy(() =>
+  import('@/pages/dashboard/components/MyTelegramSection').then(m => ({
+    default: m.MyTelegramSection,
+  }))
+)
+const SheetWorkerSection = lazy(() =>
+  import('@/pages/dashboard/components/SheetWorkerSection').then(m => ({
+    default: m.SheetWorkerSection,
+  }))
+)
 
 const UTILITY_TABS = [
   { value: 'export', label: 'Export', icon: Download },
   { value: 'activation-failures', label: 'Activation failures', icon: AlertTriangle },
   { value: 'activity-logs', label: 'Activity logs', icon: Activity },
   { value: 'telegram', label: 'Telegram', icon: Send },
+  { value: 'my-telegram', label: 'My Telegram', icon: MessageSquare },
+  { value: 'scheduled-tasks', label: 'Scheduled tasks', icon: Clock },
   { value: 'analytics', label: 'Analytics', icon: BarChart3 },
   { value: 'api-log', label: 'API Log', icon: FileText },
+  { value: 'sheet-worker', label: 'Sheet worker', icon: FileSpreadsheet },
 ] as const
 
 type UtilityTab = (typeof UTILITY_TABS)[number]['value']
@@ -110,6 +128,18 @@ export function UtilitySectionView({
         </Suspense>
       </TabsContent>
 
+      <TabsContent value="my-telegram" className="mt-4">
+        <Suspense fallback={<SectionLoader />}>
+          <MyTelegramSection userEmail={sessionEmail} />
+        </Suspense>
+      </TabsContent>
+
+      <TabsContent value="scheduled-tasks" className="mt-4">
+        <Suspense fallback={<SectionLoader />}>
+          <ScheduledTasksSection isAdmin={isAdmin} />
+        </Suspense>
+      </TabsContent>
+
       <TabsContent value="analytics" className="mt-4">
         <Suspense fallback={<SectionLoader />}>
           <AnalyticsSection deviceId={deviceId} />
@@ -119,6 +149,12 @@ export function UtilitySectionView({
       <TabsContent value="api-log" className="mt-4">
         <Suspense fallback={<SectionLoader />}>
           <ApiLogSection />
+        </Suspense>
+      </TabsContent>
+
+      <TabsContent value="sheet-worker" className="mt-4">
+        <Suspense fallback={<SectionLoader />}>
+          <SheetWorkerSection sessionEmail={sessionEmail} />
         </Suspense>
       </TabsContent>
     </Tabs>

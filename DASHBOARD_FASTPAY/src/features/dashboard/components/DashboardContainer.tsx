@@ -14,7 +14,7 @@ import {
 import { getSession, clearSession, hasFullAccess, getUserAccessLevel } from '@/lib/auth'
 import { prefetchDeviceData, prefetchDevicesData } from '@/lib/prefetch-utils'
 import { getDefaultProcessor, getProcessorById } from '@/lib/message-processors'
-import type { User, ActiveTabType, DeviceSubTab } from '@/pages/dashboard/types'
+import type { User, ActiveTabType, DeviceSectionTab } from '@/pages/dashboard/types'
 import { SectionLoader } from '@/component/SectionLoader'
 import { getDeviceListPath } from '@/lib/firebase-helpers'
 import { get } from 'firebase/database'
@@ -26,9 +26,9 @@ const NotificationsSection = lazy(() => import('@/component/NotificationsSection
 const ContactsSection = lazy(() => import('@/component/ContactsSection').then(m => ({ default: m.ContactsSection })))
 const InputFilesSection = lazy(() => import('@/component/InputFilesSection').then(m => ({ default: m.InputFilesSection })))
 const OverviewSection = lazy(() => import('@/component/OverviewSection').then(m => ({ default: m.OverviewSection })))
-const DevicesSection = lazy(() => import('@/component/DevicesSection').then(m => ({ default: m.DevicesSection })))
+const DeviceListSection = lazy(() => import('@/pages/dashboard/components/DeviceListSection').then(m => ({ default: m.DeviceListSection })))
 const AnalyticsSection = lazy(() => import('@/component/AnalyticsSection').then(m => ({ default: m.AnalyticsSection })))
-const DeviceSubTabs = lazy(() => import('@/component/DeviceSubTabs').then(m => ({ default: m.DeviceSubTabs })))
+const DeviceSectionTabs = lazy(() => import('@/pages/dashboard/components/DeviceSectionTabs').then(m => ({ default: m.DeviceSectionTabs })))
 const GmailSection = lazy(() => import('@/component/GmailSection').then(m => ({ default: m.GmailSection })))
 const DriveSection = lazy(() => import('@/component/DriveSection').then(m => ({ default: m.DriveSection })))
 const UtilitiesSection = lazy(() => import('@/component/UtilitiesSection').then(m => ({ default: m.UtilitiesSection })))
@@ -121,7 +121,7 @@ export function DashboardContainer({ onLogout }: DashboardContainerProps) {
       }
     }
   }, [activeTab])
-  const [deviceSubTab, setDeviceSubTab] = useState<DeviceSubTab>('message')
+  const [deviceSubTab, setDeviceSubTab] = useState<DeviceSectionTab>('message')
   const [viewMode, setViewMode] = useState<'tabs' | 'widgets'>(() => {
     const saved = localStorage.getItem('dashboard-viewMode')
     return saved === 'widgets' || saved === 'tabs' ? saved : 'tabs'
@@ -477,7 +477,7 @@ export function DashboardContainer({ onLogout }: DashboardContainerProps) {
         <>
           {currentDeviceId && (
             <Suspense fallback={<SectionLoader />}>
-              <DeviceSubTabs
+              <DeviceSectionTabs
                 activeTab={deviceSubTab}
                 onTabChange={setDeviceSubTab}
                 deviceId={currentDeviceId}
@@ -586,7 +586,7 @@ export function DashboardContainer({ onLogout }: DashboardContainerProps) {
             </Suspense>
           ) : activeTab === 'devices' ? (
             <Suspense fallback={<SectionLoader />}>
-              <DevicesSection
+              <DeviceListSection
                 onDeviceSelect={deviceId => {
                   handleDeviceSelect(deviceId)
                   setActiveTab('sms')

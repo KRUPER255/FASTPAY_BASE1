@@ -2,13 +2,13 @@
 
 # Firebase Connection Verification Script
 # Verifies APK, Dashboard, and Django Backend use the same Firebase project.
-# Set BASE_DIR to repo root (e.g. /root/Desktop/FASTPAY_BASE or /opt/FASTPAY). Default: parent of BACKEND.
+# Set BASE_DIR to repo root (e.g. FASTPAY_BASE or /var/www/fastpay). Default: parent of BACKEND.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BASE_DIR="${BASE_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-DASHBOARD_ENV="$BASE_DIR/DASHBOARD/.env.production"
+DASHBOARD_ENV="$BASE_DIR/DASHBOARD_FASTPAY/.env.production"
 BACKEND_ENV="$BASE_DIR/BACKEND/.env.production"
 
 # Docker: prefer "docker compose" (v2) else "docker-compose"
@@ -49,7 +49,7 @@ for candidate in "$BASE_DIR/FASTPAY_APK/FASTPAY_BASE/app/google-services.json" "
     fi
 done
 if [ -z "$APK_CONFIG" ]; then
-    APK_CONFIG="/opt/FASTPAY/APK/app/google-services.json"
+    APK_CONFIG="${PROD_BASE:-/var/www/fastpay}/APK/app/google-services.json"
 fi
 if [ -f "$APK_CONFIG" ]; then
     APK_PROJECT=$(grep -o '"project_id": "[^"]*"' "$APK_CONFIG" | cut -d'"' -f4)
@@ -93,7 +93,7 @@ echo ""
 
 # 3. Check Django Backend Firebase Configuration
 echo "3. Checking Django Backend Firebase Configuration..."
-BACKEND_ENV="/opt/FASTPAY/BACKEND/.env.production"
+# BACKEND_ENV already set from BASE_DIR above
 if [ -f "$BACKEND_ENV" ]; then
     BACKEND_DB_URL=$(grep "^FIREBASE_DATABASE_URL=" "$BACKEND_ENV" | cut -d'=' -f2)
     BACKEND_CREDS_PATH=$(grep "^FIREBASE_CREDENTIALS_PATH=" "$BACKEND_ENV" | cut -d'=' -f2)

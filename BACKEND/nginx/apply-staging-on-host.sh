@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Run this script ON THE STAGING SERVER (where host nginx runs).
-# Copies the 6 staging configs (dashboard, api, admin, axisurgent, redpay) to /etc/nginx/conf.d/, removes old staging
+# Copies the 5 staging configs (dashboard, api, admin, redpay) to /etc/nginx/conf.d/, removes old staging
 # configs, then tests and reloads nginx.
 #
 # Usage (run on STAGING SERVER where nginx is installed):
@@ -13,7 +13,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONF_SOURCE="${SCRIPT_DIR}/conf.d"
+CONF_SOURCE="${SCRIPT_DIR}/conf.d/staging"
 
 # Destination: explicit env, or first arg, or auto-detect
 if [[ -n "$NGINX_CONF_D" ]]; then
@@ -91,17 +91,17 @@ fi
 echo "Using nginx config directory: $CONF_DEST"
 
 echo "Copying staging configs from $CONF_SOURCE to $CONF_DEST ..."
-cp -v "$CONF_SOURCE/staging-00-http.conf" "$CONF_DEST/"
-cp -v "$CONF_SOURCE/staging-01-dashboard.conf" "$CONF_DEST/"
-cp -v "$CONF_SOURCE/staging-02-api.conf" "$CONF_DEST/"
-cp -v "$CONF_SOURCE/staging-03-admin.conf" "$CONF_DEST/"
-cp -v "$CONF_SOURCE/staging-04-axisurgent.conf" "$CONF_DEST/"
-cp -v "$CONF_SOURCE/staging-05-redpay.conf" "$CONF_DEST/"
+cp -v "$CONF_SOURCE/00-http.conf" "$CONF_DEST/staging-00-http.conf"
+cp -v "$CONF_SOURCE/01-dashboard.conf" "$CONF_DEST/staging-01-dashboard.conf"
+cp -v "$CONF_SOURCE/02-api.conf" "$CONF_DEST/staging-02-api.conf"
+cp -v "$CONF_SOURCE/03-admin.conf" "$CONF_DEST/staging-03-admin.conf"
+cp -v "$CONF_SOURCE/04-redpay.conf" "$CONF_DEST/staging-04-redpay.conf"
 
 echo "Removing old staging configs from $CONF_DEST ..."
 for f in acme-staging.conf staging-subdomains.conf staging-subdomain-proxy.conf \
          staging-proxy.conf staging-proxy-ssl.conf staging-standalone.conf \
-         api-staging-subdomain.conf admin-staging-subdomain.conf; do
+         api-staging-subdomain.conf admin-staging-subdomain.conf \
+         staging-04-axisurgent.conf staging-05-redpay.conf; do
     if [[ -f "$CONF_DEST/$f" ]]; then
         rm -v "$CONF_DEST/$f"
     fi
@@ -110,7 +110,7 @@ done
 # If using sites-available, nginx often loads from sites-enabled (symlinks)
 if [[ "$CONF_DEST" == *sites-available* && -d /etc/nginx/sites-enabled ]]; then
     echo "Note: Configs were copied to sites-available. To enable them:"
-    echo "  cd /etc/nginx/sites-enabled && for f in staging-00-http staging-01-dashboard staging-02-api staging-03-admin staging-04-axisurgent staging-05-redpay; do ln -sf ../sites-available/\${f}.conf .; done"
+    echo "  cd /etc/nginx/sites-enabled && for f in staging-00-http staging-01-dashboard staging-02-api staging-03-admin staging-04-redpay; do ln -sf ../sites-available/\${f}.conf .; done"
 fi
 
 NGINX_CONF="/etc/nginx/nginx.conf"

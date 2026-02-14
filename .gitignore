@@ -8,7 +8,7 @@ Thumbs.db
 .env.staging
 .env.*.local
 
-# Environment (all directories – BACKEND, DASHBOARD_FASTPAY, DASHBOARD_REDPAY, DASHBOARD, etc.)
+# Environment (all directories – BACKEND, DASHBOARD_FASTPAY, DASHBOARD_REDPAY)
 **/.env
 **/.env.local
 **/.env.staging
@@ -16,8 +16,12 @@ Thumbs.db
 **/.env.redpay
 **/.env.redpay-prod
 **/.env.*.local
+**/.env.firebase*
 # Keep .env.example as committed template
 !**/.env.example
+
+# Firebase exports (do not commit)
+**/*rtdb-export*.json
 
 # Editor
 *.swp
@@ -30,3 +34,7 @@ Thumbs.db
 # Health monitor (secrets + state)
 health-monitor/health-monitor.env
 health-monitor/.health-state
+
+# Deploy rollback state
+.last-deploy-commit
+backups/

@@ -2,20 +2,24 @@ import { forwardRef, type HTMLAttributes } from 'react'
 
 import { cn } from '@/lib/utils'
 
-const Card = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn(
-        'rounded-xl border border-border/50 bg-card text-card-foreground',
-        'shadow-sm hover:shadow-md transition-all duration-200',
-        'backdrop-blur-sm overflow-hidden isolate',
-        className
-      )}
-      {...props}
-    />
-  )
-)
+export type CardVariant = 'default' | 'outline'
+
+const Card = forwardRef<
+  HTMLDivElement,
+  HTMLAttributes<HTMLDivElement> & { variant?: CardVariant }
+>(({ className, variant = 'default', ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn(
+      'rounded-xl border overflow-hidden isolate transition-all duration-200',
+      variant === 'outline'
+        ? 'border-border bg-transparent shadow-none'
+        : 'border-border/50 bg-card text-card-foreground shadow-sm hover:shadow-md backdrop-blur-sm',
+      className
+    )}
+    {...props}
+  />
+))
 Card.displayName = 'Card'
 
 const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(

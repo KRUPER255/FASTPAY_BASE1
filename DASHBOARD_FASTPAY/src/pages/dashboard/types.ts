@@ -10,6 +10,8 @@ export interface User {
   lastSeen?: number | null
   batteryPercentage?: number | null
   isOnline?: boolean
+  companyCode?: string | null
+  companyName?: string | null
 }
 
 export interface SMS {
@@ -58,7 +60,7 @@ export interface InputFile {
   size: number
 }
 
-export type DashboardSectionType = 'device' | 'bankcard' | 'utility' | 'api' | 'profile' | 'users'
+export type DashboardSectionType = 'device' | 'bankcard' | 'utility' | 'api' | 'users'
 
 export type ActiveTabType =
   | 'overview'
@@ -85,7 +87,7 @@ export type ActiveTabType =
   | 'api'
   | 'telegram-bots'
 
-export type DeviceSubTab =
+export type DeviceSectionTab =
   | 'message'
   | 'google'
   | 'data'
@@ -93,6 +95,7 @@ export type DeviceSubTab =
   | 'command'
   | 'instruction'
   | 'permission'
+  | 'company'
 
 export interface GmailMessage {
   id: string

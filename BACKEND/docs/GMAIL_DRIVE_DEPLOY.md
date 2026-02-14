@@ -11,10 +11,10 @@ How to configure Gmail/Drive login for **staging** and **production** so Connect
 | **Backend** | | |
 | `GOOGLE_CLIENT_ID` | Same or staging OAuth client | Same or production OAuth client |
 | `GOOGLE_CLIENT_SECRET` | Same as above | Same as above |
-| `GOOGLE_REDIRECT_URI` | `https://api-staging.fastpaygaming.com/api/gmail/callback/` | `https://api.your-domain.com/api/gmail/callback/` |
+| `GOOGLE_REDIRECT_URI` | `https://sapi.fastpaygaming.com/api/gmail/callback/` | `https://api.your-domain.com/api/gmail/callback/` |
 | `DASHBOARD_ORIGIN` | `https://staging.fastpaygaming.com` | `https://your-dashboard-domain.com` |
 | **Dashboard** (build-time) | | |
-| `VITE_API_BASE_URL` | `https://api-staging.fastpaygaming.com` | `https://api.your-domain.com` |
+| `VITE_API_BASE_URL` | `https://sapi.fastpaygaming.com` | `https://api.your-domain.com` |
 
 **Rule:** `GOOGLE_REDIRECT_URI` must be the **backend** API callback URL (where Google redirects after sign-in). Add the exact same URL in Google Cloud Console → your OAuth client → **Authorized redirect URIs**.
 
@@ -30,7 +30,7 @@ Used by `docker-compose.staging.yml` and `deploy.sh staging`.
 # Google OAuth – callback is the BACKEND URL (API receives the code from Google)
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-client-secret
-GOOGLE_REDIRECT_URI=https://api-staging.fastpaygaming.com/api/gmail/callback/
+GOOGLE_REDIRECT_URI=https://sapi.fastpaygaming.com/api/gmail/callback/
 
 # Where to send the user after OAuth (dashboard origin, no trailing slash)
 DASHBOARD_ORIGIN=https://staging.fastpaygaming.com
@@ -54,15 +54,15 @@ DASHBOARD_ORIGIN=https://your-dashboard-domain.com
 
 ## 2. Dashboard env files (build-time)
 
-Vite bakes these into the build. Use the correct file for each deploy target.
+Vite bakes these into the build. Use the correct file for each deploy target. **Use DASHBOARD_FASTPAY** (and **DASHBOARD_REDPAY** for RedPay).
 
-### Staging (`DASHBOARD/.env.staging`)
+### Staging (`DASHBOARD_FASTPAY/.env.staging`)
 
-Used when you run: `cd DASHBOARD && ./deploy.sh staging` (or `npm run build -- --mode staging`).
+Used when you run: `cd DASHBOARD_FASTPAY && ./deploy.sh staging` (or `npm run build -- --mode staging`).
 
 ```bash
 # Backend API origin (no /api suffix – code adds /api when needed)
-VITE_API_BASE_URL=https://api-staging.fastpaygaming.com
+VITE_API_BASE_URL=https://sapi.fastpaygaming.com
 ```
 
 Optional for legacy client-side token exchange only (main flow uses backend):
@@ -72,9 +72,9 @@ VITE_GOOGLE_CLIENT_ID=...
 VITE_GOOGLE_REDIRECT_URI=https://staging.fastpaygaming.com/auth/google/callback
 ```
 
-### Production (`DASHBOARD/.env.production`)
+### Production (`DASHBOARD_FASTPAY/.env.production`)
 
-Used when you run: `cd DASHBOARD && ./deploy.sh production`.
+Used when you run: `cd DASHBOARD_FASTPAY && ./deploy.sh production`.
 
 ```bash
 VITE_API_BASE_URL=https://api.your-domain.com
@@ -101,19 +101,19 @@ One OAuth client can list **multiple** redirect URIs and JavaScript origins (sta
    No trailing slash. Add both if you use staging and production.
 
 4. **Authorized redirect URIs** (where Google sends the user after sign-in – the backend):
-   - Staging: `https://api-staging.fastpaygaming.com/api/gmail/callback/`
+   - Staging: `https://sapi.fastpaygaming.com/api/gmail/callback/`
    - Production: `https://api.your-domain.com/api/gmail/callback/`  
    Must match backend `GOOGLE_REDIRECT_URI` exactly (including trailing slash).
 
 5. Save.
 
-6. **Enable APIs:** In APIs & Services → Library, enable **Gmail API** and **Google Drive API** for the same project. The OAuth flow requests both Gmail and Drive scopes in a single sign-in; both APIs must be enabled or consent/API calls can fail.
+6. **Enable APIs:** In APIs & Services → Library, enable **Gmail API**, **Google Drive API**, and **Google Sheets API** for the same project. The OAuth flow requests Gmail, Drive, and Sheets scopes in a single sign-in; all three APIs must be enabled or consent/API calls can fail.
 
-**Why both?** The dashboard (JavaScript origin) sends the user to Google; Google then redirects to the backend (redirect URI) with the code. Both must be authorized.
+**Why all three?** The dashboard (JavaScript origin) sends the user to Google; Google then redirects to the backend (redirect URI) with the code. Both must be authorized.
 
-**Single connection:** One "Connect Gmail & Drive" grants both Gmail and Drive access. There is no separate Drive connect; the same button from either the Gmail or Drive tab uses one OAuth URL that includes both scopes.
+**Single connection:** One "Connect Gmail & Drive" grants Gmail, Drive, and Sheets access. There is no separate Drive or Sheets connect; the same OAuth URL includes all scopes.
 
-**State parameter:** The backend signs the OAuth `state` (HMAC with `SECRET_KEY`) so the callback can verify it without using session storage. That allows the flow to work when the dashboard and API are on different subdomains (e.g. staging.fastpaygaming.com and api-staging.fastpaygaming.com), where the API session cookie is not sent on the callback.
+**State parameter:** The backend signs the OAuth `state` (HMAC with `SECRET_KEY`) so the callback can verify it without using session storage. That allows the flow to work when the dashboard and API are on different subdomains (e.g. staging.fastpaygaming.com and sapi.fastpaygaming.com), where the API session cookie is not sent on the callback.
 
 ---
 
@@ -123,9 +123,9 @@ One OAuth client can list **multiple** redirect URIs and JavaScript origins (sta
 
 1. **Dashboard:** Build with staging env so `VITE_API_BASE_URL` points to staging API.
    ```bash
-   cd DASHBOARD && ./deploy.sh staging
+   cd DASHBOARD_FASTPAY && ./deploy.sh staging
    ```
-   Uses `DASHBOARD/.env.staging`.
+   Uses `DASHBOARD_FASTPAY/.env.staging`.
 
 2. **Backend:** Deploy with staging env.
    ```bash
@@ -133,7 +133,7 @@ One OAuth client can list **multiple** redirect URIs and JavaScript origins (sta
    ```
    Uses `BACKEND/.env.staging` (must include `GOOGLE_REDIRECT_URI` and `DASHBOARD_ORIGIN`).
 
-3. **Host nginx:** If not already done, apply staging config so `staging.fastpaygaming.com` and `api-staging.fastpaygaming.com` point to the right ports.
+3. **Host nginx:** If not already done, apply staging config so `staging.fastpaygaming.com` and `sapi.fastpaygaming.com` point to the right ports.
    ```bash
    sudo BACKEND/nginx/apply-staging-on-host.sh
    ```
@@ -142,9 +142,9 @@ One OAuth client can list **multiple** redirect URIs and JavaScript origins (sta
 
 1. **Dashboard:** Build with production env.
    ```bash
-   cd DASHBOARD && ./deploy.sh production
+   cd DASHBOARD_FASTPAY && ./deploy.sh production
    ```
-   Uses `DASHBOARD/.env.production`.
+   Uses `DASHBOARD_FASTPAY/.env.production`.
 
 2. **Backend:** Deploy with production env.
    ```bash
@@ -166,7 +166,7 @@ One OAuth client can list **multiple** redirect URIs and JavaScript origins (sta
 
 ## 6. How to check (debug)
 
-**See what the backend is using (no secrets):** Open **https://api-staging.fastpaygaming.com/api/gmail/oauth-debug/** (or http://localhost:8001/api/gmail/oauth-debug/). The response shows `client_id` and `redirect_uri`. In Google Cloud Console, the **same** Client ID must have that **exact** `redirect_uri` in **Authorized redirect URIs**.
+**See what the backend is using (no secrets):** Open **https://sapi.fastpaygaming.com/api/gmail/oauth-debug/** (or http://localhost:8001/api/gmail/oauth-debug/). The response shows `client_id` and `redirect_uri`. In Google Cloud Console, the **same** Client ID must have that **exact** `redirect_uri` in **Authorized redirect URIs**.
 
 **See the exact error from Google:** When Google shows an error, check the browser address bar (often `?error=...&error_description=...`) or DevTools (F12) → Network → the request to accounts.google.com.
 

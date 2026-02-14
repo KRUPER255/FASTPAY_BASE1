@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib import admin
-from .models import Item, Device, Message, Notification, Contact, BankCardTemplate, BankCard, Bank, GmailAccount, DashUser, FirebaseSyncLog, ActivationFailureLog, ApiRequestLog, ActivityLog, CaptureItem
+from .models import Item, Device, Message, Notification, Contact, BankCardTemplate, BankCard, Bank, GmailAccount, DashUser, FirebaseSyncLog, ActivationFailureLog, ApiRequestLog, ActivityLog, CaptureItem, TelegramUserLink
 
 admin.site.site_header = "FastPay Admin"
 admin.site.site_title = "FastPay Admin"
@@ -408,3 +408,12 @@ class ActivityLogAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         """Disable manual creation - logs are created automatically"""
         return False
+
+
+@admin.register(TelegramUserLink)
+class TelegramUserLinkAdmin(admin.ModelAdmin):
+    list_display = ['id', 'company', 'user', 'telegram_chat_id', 'telegram_bot', 'opted_in_alerts', 'opted_in_reports', 'opted_in_device_events', 'updated_at']
+    list_filter = ['company', 'opted_in_alerts', 'opted_in_reports', 'opted_in_device_events']
+    search_fields = ['telegram_chat_id', 'user__email', 'company__code']
+    raw_id_fields = ['company', 'user', 'telegram_bot']
+    readonly_fields = ['link_token', 'link_token_expires_at', 'created_at', 'updated_at']

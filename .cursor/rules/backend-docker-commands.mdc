@@ -1,0 +1,37 @@
+---
+description: Backend runs in Docker; generate backend commands to run inside the container
+alwaysApply: true
+---
+
+# Backend Commands (Docker)
+
+The **backend** (Django, `manage.py`, migrations, etc.) runs in **Docker**. When generating or suggesting backend commands, always use a form that runs inside the container, not directly on the host.
+
+## Patterns
+
+**Staging** (project `fastpay-staging`, container `fastpay-staging-web-1`):
+
+- Prefer the running container by name when it exists:
+  ```bash
+  docker exec fastpay-staging-web-1 python manage.py <command> [args]
+  ```
+- Or with compose (from `BACKEND/`):
+  ```bash
+  docker compose -f docker-compose.staging.yml -p fastpay-staging exec web python manage.py <command> [args]
+  ```
+
+**Production** (or when project/container name differs):
+
+- Use compose with the appropriate compose file and project:
+  ```bash
+  docker compose -f docker-compose.yml -p <project> exec web python manage.py <command> [args]
+  ```
+- Or `docker exec <web-container-name> python manage.py <command> [args]` if the container name is known.
+
+## Examples
+
+- **Wrong:** `python manage.py migrate` (assumes host or current dir)
+- **Right:** `docker exec fastpay-staging-web-1 python manage.py migrate`
+- **Right:** `docker compose -f docker-compose.staging.yml -p fastpay-staging exec web python manage.py create_super_admin --email admin@fastpay.com --password 'admin@123'`
+
+When documenting or suggesting shell commands that touch the backend (e.g. management commands, migrations, tests, shell), use the Docker form above. If the user is clearly in a non-Docker context (e.g. local `venv`), you may use the direct form instead.

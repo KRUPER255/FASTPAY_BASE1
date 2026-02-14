@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { Smartphone } from 'lucide-react'
+import { Smartphone, Users } from 'lucide-react'
 import type { DashboardSectionType } from '@/pages/dashboard/types'
 
 export interface DashboardSectionConfig {
@@ -9,9 +9,10 @@ export interface DashboardSectionConfig {
   showDeviceSidebar: boolean
 }
 
-// REDPAY: minimal dashboard – only the Device section is exposed.
+// REDPAY: Device and User Management sections
 export const DASHBOARD_SECTIONS: DashboardSectionConfig[] = [
   { key: 'device', label: 'Device', icon: Smartphone, showDeviceSidebar: true },
+  { key: 'users', label: 'Users', icon: Users, showDeviceSidebar: false },
 ]
 
 export const DASHBOARD_SECTION_STORAGE_KEY = 'dashboard-v2-section'

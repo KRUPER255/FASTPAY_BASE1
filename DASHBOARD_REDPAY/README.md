@@ -1,6 +1,8 @@
-# FastPay Dashboard
+# RedPay Dashboard
 
-A comprehensive React-based dashboard for managing FastPay Android devices, monitoring SMS/notifications, executing remote commands, and managing device configurations.
+RedPay variant of the FastPay dashboard: same codebase, built with `VITE_REDPAY_ONLY=true` for a RedPay-only app (login + minimal dashboard). Served at e.g. `redpay.fastpaygaming.com` / `sredpay.fastpaygaming.com`.
+
+**Role:** RedPay **variant**. Set `VITE_REDPAY_ONLY=true` in `.env.staging` / `.env.production` (or rely on `deploy.sh`). See [docs/VPS_DEPLOY_STRUCTURE.md](../docs/VPS_DEPLOY_STRUCTURE.md) (build matrix) and [DASHBOARD_DOCUMENTATION.md](DASHBOARD_DOCUMENTATION.md).
 
 ## 📋 Table of Contents
 

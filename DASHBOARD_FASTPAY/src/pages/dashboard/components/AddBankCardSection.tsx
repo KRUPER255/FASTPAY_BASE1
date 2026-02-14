@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/component/ui/card'
 import { Button } from '@/component/ui/button'
 import { Input } from '@/component/ui/input'
@@ -12,7 +12,7 @@ import {
 } from '@/component/ui/select'
 import { Textarea } from '@/component/ui/textarea'
 import { useToast } from '@/lib/use-toast'
-import { Loader, CreditCard, Building2, CheckCircle, XCircle, LayoutTemplate } from 'lucide-react'
+import { Loader, CreditCard, Building2, CheckCircle, XCircle, LayoutTemplate, KeyRound } from 'lucide-react'
 import { getApiUrl } from '@/lib/api-client'
 
 interface BankCardTemplate {
@@ -21,9 +21,16 @@ interface BankCardTemplate {
   template_name: string
   bank_name: string | null
   card_type: 'credit' | 'debit' | 'prepaid'
-  default_fields: Record<string, any>
+  default_fields: Record<string, unknown>
   description: string | null
   is_active: boolean
+}
+
+/** Shape of field_schema.field_definitions from template default_fields */
+interface FieldDefinition {
+  label?: string
+  type?: 'string' | 'number' | 'boolean' | 'date'
+  default?: string | number | boolean
 }
 
 interface AddBankCardSectionProps {
@@ -64,6 +71,9 @@ export function AddBankCardSection({
     kyc_aadhar: '',
     kyc_pan: '',
   })
+
+  /** Key-value custom fields from template field_schema (stored in bank_specific_fields) */
+  const [bankSpecificFields, setBankSpecificFields] = useState<Record<string, string | number | boolean>>({})
 
   // Fetch templates
   useEffect(() => {
@@ -106,18 +116,34 @@ export function AddBankCardSection({
   }, [toast])
 
 
-  // Load template defaults when template is selected
+  // Load template defaults when template is selected (flat defaults + field_schema custom fields)
   useEffect(() => {
     if (selectedTemplateId) {
       const template = templates.find(t => t.id.toString() === selectedTemplateId)
       if (template) {
+        const df = template.default_fields || {}
+        const { field_schema, ...flatDefaults } = df as { field_schema?: { field_definitions?: Record<string, FieldDefinition> }; [k: string]: unknown }
         setFormData(prev => ({
           ...prev,
           bank_name: template.bank_name || prev.bank_name,
           card_type: template.card_type || prev.card_type,
-          ...template.default_fields,
+          ...flatDefaults,
         }))
+        const definitions = field_schema?.field_definitions || {}
+        const initial: Record<string, string | number | boolean> = {}
+        Object.entries(definitions).forEach(([key, def]) => {
+          if (def?.default !== undefined) {
+            if (def.type === 'number') initial[key] = Number(def.default)
+            else if (def.type === 'boolean') initial[key] = Boolean(def.default)
+            else initial[key] = String(def.default)
+          } else {
+            initial[key] = ''
+          }
+        })
+        setBankSpecificFields(initial)
       }
+    } else {
+      setBankSpecificFields({})
     }
   }, [selectedTemplateId, templates])
 
@@ -131,6 +157,16 @@ export function AddBankCardSection({
   const handleSelectChange = (name: string, value: string) => {
     setFormData(prev => ({ ...prev, [name]: value }))
   }
+
+  const selectedTemplate = useMemo(
+    () => templates.find(t => t.id.toString() === selectedTemplateId),
+    [templates, selectedTemplateId]
+  )
+  const fieldDefinitions = useMemo(() => {
+    const df = selectedTemplate?.default_fields as { field_schema?: { field_definitions?: Record<string, FieldDefinition> } } | undefined
+    return df?.field_schema?.field_definitions || {}
+  }, [selectedTemplate])
+  const hasCustomFields = Object.keys(fieldDefinitions).length > 0
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -169,6 +205,7 @@ export function AddBankCardSection({
         template_id: parseInt(selectedTemplateId),
         ...formData,
         balance: formData.balance ? parseFloat(formData.balance) : null,
+        bank_specific_fields: Object.keys(bankSpecificFields).length ? bankSpecificFields : undefined,
       }
 
       const response = await fetch(getApiUrl('/bank-cards/'), {
@@ -217,6 +254,7 @@ export function AddBankCardSection({
         kyc_pan: '',
       })
       setSelectedTemplateId('')
+      setBankSpecificFields({})
     } catch (error) {
       console.error('Error creating bank card:', error)
       toast({
@@ -337,6 +375,59 @@ export function AddBankCardSection({
               </>
             )}
           </div>
+
+          {/* Template custom fields (key-value from field_schema) */}
+          {hasCustomFields && (
+            <div className="space-y-4 border-t pt-4">
+              <h3 className="font-semibold flex items-center gap-2">
+                <KeyRound className="h-4 w-4" />
+                Template custom fields
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.entries(fieldDefinitions).map(([key, def]) => {
+                  const label = def?.label || key
+                  const fieldType = def?.type || 'string'
+                  const value = bankSpecificFields[key]
+                  const handleCustomChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+                    const v = e.target.value
+                    setBankSpecificFields(prev => ({
+                      ...prev,
+                      [key]: fieldType === 'number' ? (v === '' ? '' : Number(v)) : fieldType === 'boolean' ? v === 'true' : v,
+                    }))
+                  }
+                  const handleCustomCheck = (e: React.ChangeEvent<HTMLInputElement>) => {
+                    setBankSpecificFields(prev => ({ ...prev, [key]: e.target.checked }))
+                  }
+                  if (fieldType === 'boolean') {
+                    return (
+                      <div key={key} className="space-y-2 flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id={`custom_${key}`}
+                          checked={value === true}
+                          onChange={handleCustomCheck}
+                          className="h-4 w-4 rounded border-border"
+                        />
+                        <Label htmlFor={`custom_${key}`} className="cursor-pointer">{label}</Label>
+                      </div>
+                    )
+                  }
+                  return (
+                    <div key={key} className="space-y-2">
+                      <Label htmlFor={`custom_${key}`}>{label}</Label>
+                      <Input
+                        id={`custom_${key}`}
+                        type={fieldType === 'number' ? 'number' : fieldType === 'date' ? 'date' : 'text'}
+                        value={value === undefined || value === null ? '' : String(value)}
+                        onChange={handleCustomChange}
+                        placeholder={label}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Card Information Section */}
           <div className="space-y-4 border-t pt-4">

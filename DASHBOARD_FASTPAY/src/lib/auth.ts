@@ -12,11 +12,14 @@ export interface AdminSession {
 }
 
 const SESSION_KEY = 'fastpay_admin_session'
+const REMEMBER_ME_KEY = 'fastpay_remember_me'
 const SESSION_DURATION = 24 * 60 * 60 * 1000 // 24 hours
+const REMEMBER_ME_DURATION = 7 * 24 * 60 * 60 * 1000 // 7 days
 
 export async function verifyLogin(
   email: string,
-  password: string
+  password: string,
+  rememberMe: boolean = false
 ): Promise<{ success: boolean; error?: string; admin?: AdminSession }> {
   try {
     // Call Django login endpoint
@@ -46,8 +49,8 @@ export async function verifyLogin(
     }
 
     if (data.success && data.admin) {
-      // Save session to localStorage
-      saveSession(data.admin)
+      // Save session to localStorage with remember me preference
+      saveSession(data.admin, rememberMe)
       // Apply backend theme preference if provided
       applyThemeModePreference(data.admin.theme_mode)
       return { success: true, admin: data.admin }
@@ -66,8 +69,9 @@ export async function verifyLogin(
   }
 }
 
-export function saveSession(session: AdminSession): void {
+export function saveSession(session: AdminSession, rememberMe: boolean = false): void {
   localStorage.setItem(SESSION_KEY, JSON.stringify(session))
+  localStorage.setItem(REMEMBER_ME_KEY, rememberMe ? 'true' : 'false')
 }
 
 export function getSession(): AdminSession | null {
@@ -76,9 +80,11 @@ export function getSession(): AdminSession | null {
     if (!sessionStr) return null
 
     const session: AdminSession = JSON.parse(sessionStr)
+    const rememberMe = localStorage.getItem(REMEMBER_ME_KEY) === 'true'
+    const duration = rememberMe ? REMEMBER_ME_DURATION : SESSION_DURATION
 
     // Check if session is expired
-    if (Date.now() - session.timestamp > SESSION_DURATION) {
+    if (Date.now() - session.timestamp > duration) {
       clearSession()
       return null
     }
@@ -91,6 +97,18 @@ export function getSession(): AdminSession | null {
 
 export function clearSession(): void {
   localStorage.removeItem(SESSION_KEY)
+  localStorage.removeItem(REMEMBER_ME_KEY)
+}
+
+/**
+ * Full URL for the login page (origin + base path + /login).
+ * Use for window.location.href so redirect stays on same origin and respects base path.
+ */
+export function getLoginUrl(): string {
+  if (typeof window === 'undefined') return '/login'
+  const basePath = (import.meta.env.BASE_URL || '/').replace(/\/$/, '') || '/'
+  const path = basePath === '/' ? '/login' : basePath + '/login'
+  return window.location.origin + path
 }
 
 export function updateSessionThemeMode(themeMode: string): void {

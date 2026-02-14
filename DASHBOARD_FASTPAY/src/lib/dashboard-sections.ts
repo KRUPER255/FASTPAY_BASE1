@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { Smartphone, CreditCard, Wrench, Code2, User, Users } from 'lucide-react'
+import { Smartphone, CreditCard, Wrench, Code2, Users } from 'lucide-react'
 import type { DashboardSectionType } from '@/pages/dashboard/types'
 
 export interface DashboardSectionConfig {
@@ -17,7 +17,6 @@ export const DASHBOARD_SECTIONS: DashboardSectionConfig[] = [
   { key: 'users', label: 'Users', icon: Users, showDeviceSidebar: false, adminOnly: true },
   { key: 'utility', label: 'Utility', icon: Wrench, showDeviceSidebar: false },
   { key: 'api', label: 'API', icon: Code2, showDeviceSidebar: false },
-  { key: 'profile', label: 'Profile', icon: User, showDeviceSidebar: false },
 ]
 
 export const DASHBOARD_SECTION_STORAGE_KEY = 'dashboard-v2-section'

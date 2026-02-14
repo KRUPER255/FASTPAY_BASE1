@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Run command – FastPay</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 1rem 2rem; max-width: 900px; }
+    h1 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    p.sub { color: #666; font-size: 0.9rem; margin-top: 0; }
+    form { margin: 1rem 0; }
+    .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.75rem; }
+    label { min-width: 6rem; }
+    select { padding: 0.35rem 0.5rem; min-width: 220px; }
+    input[type="text"] { padding: 0.35rem 0.5rem; flex: 1; min-width: 200px; }
+    button { padding: 0.5rem 1rem; background: #2563eb; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+    button:hover { background: #1d4ed8; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    #output { margin-top: 1rem; white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 0.85rem; background: #f1f5f9; padding: 1rem; border-radius: 4px; min-height: 80px; }
+    #output.empty { color: #94a3b8; }
+    #output.error { background: #fef2f2; color: #b91c1c; }
+    #output.success { background: #f0fdf4; }
+    .back { margin-bottom: 1rem; }
+    .back a { color: #2563eb; text-decoration: none; }
+    .back a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="back"><a href="/admin/">← Back to Admin</a></div>
+  <h1>Run command</h1>
+  <p class="sub">Run an allowlisted Django management command (staff only).</p>
+
+  <form id="form" action="" method="post">
+    {% csrf_token %}
+    <div class="row">
+      <label for="command">Command</label>
+      <select id="command" name="command" required>
+        <option value="">-- choose --</option>
+        {% for cmd in commands %}
+        <option value="{{ cmd }}">{{ cmd }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="row">
+      <label for="args">Arguments</label>
+      <input type="text" id="args" name="args" placeholder="e.g. --count 5 --dry-run" />
+    </div>
+    <div class="row">
+      <button type="submit" id="btn">Run</button>
+    </div>
+  </form>
+
+  <div id="output" class="empty">Output will appear here.</div>
+
+  <script>
+    const form = document.getElementById('form');
+    const output = document.getElementById('output');
+    const btn = document.getElementById('btn');
+
+    function setOutput(text, kind) {
+      output.textContent = text || '(no output)';
+      output.classList.remove('empty', 'error', 'success');
+      if (kind === 'error') output.classList.add('error');
+      else if (kind === 'success') output.classList.add('success');
+      else if (!text) output.classList.add('empty');
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const command = document.getElementById('command').value;
+      const argsStr = document.getElementById('args').value.trim();
+      const args = argsStr ? argsStr.split(/\s+/) : [];
+
+      btn.disabled = true;
+      setOutput('Running…', '');
+
+      const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+      const res = await fetch('', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrf,
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ command, args }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      btn.disabled = false;
+
+      if (!res.ok) {
+        setOutput(data.error || 'Request failed', 'error');
+        return;
+      }
+
+      let text = data.stdout || '';
+      if (data.stderr) text += (text ? '\n' : '') + 'stderr:\n' + data.stderr;
+      if (data.returncode !== 0) text += (text ? '\n' : '') + '\n(exit code ' + data.returncode + ')';
+      setOutput(text || '(no output)', data.returncode === 0 ? 'success' : 'error');
+    });
+  </script>
+</body>
+</html>

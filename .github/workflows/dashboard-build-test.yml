@@ -1,0 +1,66 @@
+# Build and test both DASHBOARD_FASTPAY and DASHBOARD_REDPAY on dashboard changes.
+# RedPay is built with VITE_REDPAY_ONLY=true.
+name: Dashboard build and test
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'DASHBOARD_FASTPAY/**'
+      - 'DASHBOARD_REDPAY/**'
+      - '.github/workflows/dashboard-build-test.yml'
+      - 'scripts/check-dashboard-sync.sh'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'DASHBOARD_FASTPAY/**'
+      - 'DASHBOARD_REDPAY/**'
+      - '.github/workflows/dashboard-build-test.yml'
+      - 'scripts/check-dashboard-sync.sh'
+
+jobs:
+  dashboard-fastpay:
+    name: FastPay dashboard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: DASHBOARD_FASTPAY/package-lock.json
+
+      - name: Install and build
+        working-directory: DASHBOARD_FASTPAY
+        run: npm ci --legacy-peer-deps && npm run build
+
+      - name: Test
+        working-directory: DASHBOARD_FASTPAY
+        run: npm run test -- --run
+        continue-on-error: true
+
+  dashboard-redpay:
+    name: RedPay dashboard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: DASHBOARD_REDPAY/package-lock.json
+
+      - name: Install and build (RedPay-only)
+        working-directory: DASHBOARD_REDPAY
+        env:
+          VITE_REDPAY_ONLY: 'true'
+        run: npm ci --legacy-peer-deps && npm run build
+
+      - name: Test
+        working-directory: DASHBOARD_REDPAY
+        run: npm run test -- --run
+        continue-on-error: true

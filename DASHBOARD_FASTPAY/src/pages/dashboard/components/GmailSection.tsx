@@ -240,6 +240,9 @@ export function GmailSection({ deviceId, isAdmin }: GmailSectionProps) {
 
     setLoading(true)
     try {
+      if (typeof sessionStorage !== 'undefined' && deviceId) {
+        sessionStorage.setItem('dashboard_oauth_return_device_id', deviceId)
+      }
       const { auth_url } = await initGmailAuth(userEmail)
       // Redirect to Google OAuth page
       window.location.href = auth_url

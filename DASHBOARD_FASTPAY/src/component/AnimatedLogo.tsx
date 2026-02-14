@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
+import { getAppName, getDefaultTagline } from '@/lib/branding'
 import './AnimatedLogo.css'
 
 interface AnimatedLogoProps {
@@ -21,11 +22,11 @@ export default function AnimatedLogo({
   className,
   size = 'md',
   showTagline = false,
-  tagline = 'The Real Gaming Platform',
+  tagline = getDefaultTagline(),
   animated = true,
 }: AnimatedLogoProps) {
   const [mounted, setMounted] = useState(!animated)
-  const letters = 'FASTPAY'.split('')
+  const letters = getAppName().split('')
   const taglineWords = tagline.split(' ')
 
   useEffect(() => {

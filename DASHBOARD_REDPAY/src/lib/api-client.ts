@@ -160,12 +160,144 @@ export async function fetchDevices(filters?: {
     }
 
     const data = await response.json()
-    // Django REST Framework returns results in a 'results' array if paginated, otherwise it's an array
-    return Array.isArray(data) ? data : (data.results || [])
+    // Handle different response formats:
+    // 1. Direct array: [device1, device2, ...]
+    // 2. Paginated DRF: {results: [...], count: N}
+    // 3. Custom wrapper: {success: true, data: [...]}
+    if (Array.isArray(data)) {
+      return data
+    }
+    if (data.success === true && Array.isArray(data.data)) {
+      return data.data
+    }
+    if (Array.isArray(data.results)) {
+      return data.results
+    }
+    return []
   } catch (error) {
     console.error('Error fetching devices from Django:', error)
     throw error
   }
+}
+
+export interface Company {
+  id: number
+  code: string
+  name: string
+  is_active: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+export interface DashboardUser {
+  email: string
+  full_name: string | null
+  access_level: number
+  status: string
+  company_code?: string
+  company_name?: string
+  assigned_device_count: number
+}
+
+/**
+ * Fetch companies from Django API
+ */
+export async function fetchCompanies(): Promise<Company[]> {
+  try {
+    const url = getApiUrl('/companies/')
+    const response = await fetchWithRetry(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch companies: ${response.status} ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    if (Array.isArray(data)) {
+      return data
+    }
+    if (data.success === true && Array.isArray(data.data)) {
+      return data.data
+    }
+    if (Array.isArray(data.results)) {
+      return data.results
+    }
+    return []
+  } catch (error) {
+    console.error('Error fetching companies from Django:', error)
+    throw error
+  }
+}
+
+/**
+ * Fetch dashboard users (filtered by REDPAY company for RedPay users)
+ * @param adminEmail Email of the user making the request
+ */
+export async function fetchDashboardUsers(adminEmail: string): Promise<DashboardUser[]> {
+  const url = getApiUrl('/dashboard-users/') + `?admin_email=${encodeURIComponent(adminEmail)}`
+  const response = await fetchWithRetry(url, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+  })
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err.error || `Failed to fetch dashboard users: ${response.statusText}`)
+  }
+  const data = await response.json()
+  if (!data.success || !Array.isArray(data.users)) return []
+  return data.users
+}
+
+/**
+ * Create a dashboard user (REDPAY company only for RedPay users)
+ */
+export async function createDashboardUser(
+  adminEmail: string,
+  params: { email: string; password: string; full_name?: string; access_level: number }
+): Promise<DashboardUser> {
+  const response = await fetchWithRetry(getApiUrl('/dashboard-user-create/'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({
+      admin_email: adminEmail,
+      email: params.email,
+      password: params.password,
+      full_name: params.full_name || '',
+      access_level: params.access_level,
+      company_code: 'REDPAY', // RedPay users can only create REDPAY users
+    }),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.error || 'Failed to create user')
+  return { ...data.user, assigned_device_count: 0 }
+}
+
+/**
+ * Update a dashboard user (REDPAY company only for RedPay users)
+ */
+export async function updateDashboardUser(
+  adminEmail: string,
+  email: string,
+  params: { full_name?: string; access_level?: number; status?: string }
+): Promise<DashboardUser> {
+  const response = await fetchWithRetry(getApiUrl('/dashboard-user-update/'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({
+      admin_email: adminEmail,
+      email,
+      ...params,
+      // RedPay users cannot change company, it stays REDPAY
+    }),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.error || 'Failed to update user')
+  return { ...data.user, assigned_device_count: 0 }
 }
 
 /**

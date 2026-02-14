@@ -389,6 +389,93 @@ def send_alert(
     )
 
 
+def format_alert(
+    title: str,
+    body: str,
+    sections: Optional[Dict[str, str]] = None,
+    parse_mode: str = "HTML",
+) -> str:
+    """
+    Format an alert message with optional title and sections.
+    
+    Args:
+        title: Alert title (e.g. "Device offline")
+        body: Main body text
+        sections: Optional dict of label -> value for extra lines
+        parse_mode: "HTML" or "Markdown" (HTML escapes < and > in values)
+    
+    Returns:
+        Formatted string suitable for send_message/send_alert
+    """
+    if parse_mode == "HTML":
+        def esc(s: str) -> str:
+            return (
+                str(s)
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+            )
+    else:
+        def esc(s: str) -> str:
+            return str(s)
+    
+    parts = [f"<b>{esc(title)}</b>", "", esc(body)]
+    if sections:
+        for label, value in sections.items():
+            parts.append(f"{esc(label)}: {esc(value)}")
+    return "\n".join(parts)
+
+
+def send_alert_templated(
+    template_key: str,
+    context: Dict[str, Any],
+    *,
+    bot_name: Optional[str] = None,
+    bot_id: Optional[int] = None,
+    throttle_key: Optional[str] = None,
+    throttle_seconds: Optional[int] = None,
+    parse_mode: Optional[str] = "HTML",
+) -> bool:
+    """
+    Send an alert using a simple template. Built-in templates: device_offline, sync_failed, health_check_failed.
+    For custom text use send_alert directly.
+    """
+    templates = {
+        "device_offline": lambda c: format_alert(
+            "Device offline",
+            f"Device {c.get('device_id', '?')} has not been seen recently.",
+            {"Last seen": c.get("last_seen", "n/a")},
+            parse_mode=parse_mode or "HTML",
+        ),
+        "sync_failed": lambda c: format_alert(
+            "Sync failed",
+            c.get("message", str(c)),
+            {"Device": c.get("device_id", "n/a"), "Error": c.get("error", "n/a")},
+            parse_mode=parse_mode or "HTML",
+        ),
+        "health_check_failed": lambda c: format_alert(
+            "Health check failed",
+            c.get("message", "One or more services are unhealthy."),
+            sections=c.get("details") if isinstance(c.get("details"), dict) else None,
+            parse_mode=parse_mode or "HTML",
+        ),
+    }
+    text = templates.get(template_key)
+    if callable(text):
+        text = text(context)
+    else:
+        text = context.get("message", str(context))
+    key = throttle_key or f"templated:{template_key}"
+    return send_alert(
+        text,
+        bot_name=bot_name,
+        bot_id=bot_id,
+        throttle_key=key,
+        throttle_seconds=throttle_seconds,
+        parse_mode=parse_mode,
+    )
+
+
 def send_photo(
     photo: Union[str, bytes],
     *,

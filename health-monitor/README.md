@@ -84,4 +84,4 @@ Uses the same `health-monitor.env` (TELEGRAM_*, HEALTH_URLS). If the message exc
 - https://fastpaygaming.com/health/ (nginx health)
 - https://api.fastpaygaming.com/api/ (production API)
 - https://staging.fastpaygaming.com/ (staging dashboard)
-- https://api-staging.fastpaygaming.com/api/ (staging API)
+- https://sapi.fastpaygaming.com/api/ (staging API)

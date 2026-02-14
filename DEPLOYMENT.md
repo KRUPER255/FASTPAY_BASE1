@@ -1,5 +1,11 @@
 # FastPay Deployment Process
 
+**Structured reference:** For a single-command, step-by-step deploy flow, see **[docs/DEPLOY_PROCESS.md](docs/DEPLOY_PROCESS.md)**. From repo root, use **`./deploy.sh <staging|production> [options]`** as the main entry point.
+
+This document adds detail on env files, backend options, and health monitor.
+
+---
+
 This process deploys:
 - **Backend**: Django + Postgres + Nginx (Docker Compose)
 - **Dashboard**: Vite build served by the same Nginx container
@@ -12,26 +18,19 @@ Two environments are supported: **production** and **staging**. Each environment
 
 - Docker and Docker Compose (v2 or docker-compose)
 - Node.js + npm (for dashboard build on the server)
-- Repo present at `/opt/FASTPAY` (production)
-- Staging directory name: **FASTPAY_BASE** at `/root/Desktop/FASTPAY_BASE` (not FASTPAY-staging)
+- Repo present at production base (e.g. `/var/www/fastpay`; see [docs/VPS_DEPLOY_STRUCTURE.md](docs/VPS_DEPLOY_STRUCTURE.md))
+- Staging: repo at e.g. `/root/Desktop/FASTPAY_BASE` or `/desktop/fastpay`
 
 ---
 
 ## One-time setup
 
-Production:
-```bash
-cd /opt/FASTPAY
-chmod +x deploy-all.sh
-chmod +x BACKEND/deploy.sh
-chmod +x promote-from-staging.sh
-```
+From repo root (see [docs/DEPLOY_PROCESS.md](docs/DEPLOY_PROCESS.md) for full setup):
 
-Staging (directory **FASTPAY_BASE**):
 ```bash
-cd /root/Desktop/FASTPAY_BASE
-chmod +x BACKEND/deploy-staging.sh
-chmod +x promote-from-staging.sh
+chmod +x deploy.sh deploy-all.sh deploy-production.sh BACKEND/deploy.sh
+chmod +x DASHBOARD_FASTPAY/deploy.sh DASHBOARD_REDPAY/deploy.sh
+# Optional: chmod +x promote-from-staging.sh
 ```
 
 ---
@@ -40,18 +39,18 @@ chmod +x promote-from-staging.sh
 
 ### Backend env files
 
-- Production: `BACKEND/.env.production` (in `/opt/FASTPAY`)
-- Staging: `BACKEND/.env.staging` (in `/root/Desktop/FASTPAY_BASE`)
+- Production: `BACKEND/.env.production` (in `/var/www/fastpay`)
+- Staging: `BACKEND/.env.staging` (in your staging repo, e.g. FASTPAY_BASE or `/desktop/fastpay`)
 
 Production:
 ```bash
-cd /opt/FASTPAY/BACKEND
+cd /var/www/fastpay/BACKEND
 cp .env.example .env.production
 ```
 
 Staging:
 ```bash
-cd /root/Desktop/FASTPAY_BASE/BACKEND
+cd /path/to/your/staging/repo/BACKEND
 cp .env.example .env.staging
 ```
 
@@ -59,19 +58,20 @@ Update `ALLOWED_HOSTS`, database credentials, and any API keys for each environm
 
 ### Dashboard env files
 
-Vite reads environment variables per mode:
-- Production: `DASHBOARD/.env.production` (in `/opt/FASTPAY`)
-- Staging: `DASHBOARD/.env.staging` (in `/root/Desktop/FASTPAY_BASE`)
+Vite reads environment variables per mode. Use **DASHBOARD_FASTPAY** (and **DASHBOARD_REDPAY** for RedPay).
+
+- Production: `DASHBOARD_FASTPAY/.env.production` (in `/var/www/fastpay`)
+- Staging: `DASHBOARD_FASTPAY/.env.staging` (in your staging repo)
 
 Production:
 ```bash
-cd /opt/FASTPAY/DASHBOARD
+cd /var/www/fastpay/DASHBOARD_FASTPAY
 cp .env.example .env.production
 ```
 
 Staging:
 ```bash
-cd /root/Desktop/FASTPAY_BASE/DASHBOARD
+cd /path/to/your/staging/repo/DASHBOARD_FASTPAY
 cp .env.example .env.staging
 ```
 
@@ -81,23 +81,24 @@ Update `VITE_API_BASE_URL` and Firebase config for each environment.
 
 ## Build dashboard
 
-### Production build (default)
+Use **DASHBOARD_FASTPAY** (FastPay) and **DASHBOARD_REDPAY** (RedPay). See [docs/VPS_DEPLOY_STRUCTURE.md](docs/VPS_DEPLOY_STRUCTURE.md) for layout.
+
+### Production build (FastPay)
 
 ```bash
-cd /opt/FASTPAY/DASHBOARD
-npm install
-VITE_BASE_PATH=/ npm run build -- --mode production
+cd /var/www/fastpay/DASHBOARD_FASTPAY
+npm ci --legacy-peer-deps
+./deploy.sh production
 ```
 
-### Staging build (served at /test)
+### Staging build (FastPay + RedPay)
 
 ```bash
-cd /root/Desktop/FASTPAY_BASE/DASHBOARD
-npm install
-VITE_BASE_PATH=/test/ npm run build -- --mode staging
+cd /path/to/your/staging/repo
+./deploy-all.sh dashboard   # builds DASHBOARD_FASTPAY and DASHBOARD_REDPAY
 ```
 
-Staging is served from `/test`, so the base path must be `/test/`.
+Or per dashboard: `cd DASHBOARD_FASTPAY && ./deploy.sh staging` and `cd DASHBOARD_REDPAY && ./deploy.sh staging`.
 
 ---
 
@@ -106,14 +107,14 @@ Staging is served from `/test`, so the base path must be `/test/`.
 ### Production
 
 ```bash
-cd /opt/FASTPAY/BACKEND
+cd /var/www/fastpay/BACKEND
 ENV_FILE=.env.production ./deploy.sh production --no-input
 ```
 
 ### Staging
 
 ```bash
-cd /root/Desktop/FASTPAY_BASE/BACKEND
+cd /path/to/your/staging/repo/BACKEND
 ./deploy.sh staging --no-input --skip-tests
 ```
 
@@ -147,20 +148,36 @@ Examples:
 
 ## One-command deployment (recommended)
 
-This builds the dashboard and deploys the backend in one run.
+Use the **single entry point** from repo root. See [docs/DEPLOY_PROCESS.md](docs/DEPLOY_PROCESS.md) for the full structured process.
 
 ### Production
 
 ```bash
-cd /opt/FASTPAY
-./deploy-all.sh production --no-input
+cd /var/www/fastpay   # or set PRODUCTION_BASE to your repo path
+./deploy.sh production --no-input --pull
 ```
 
-### Staging is deployed separately
+Or directly: `./deploy-production.sh --no-input --pull`
 
-Staging uses the **FASTPAY_BASE** directory at `/root/Desktop/FASTPAY_BASE` (not FASTPAY-staging) and is served at `/test` on the same domain.
+### Staging deploy (simple steps)
 
-**Staging deploy at public URL (tested):** From repo root run `./deploy-all.sh --no-input` (runs dashboard build, backend deploy with tests, and verification of public URLs). On the staging server, run `sudo ./BACKEND/nginx/apply-staging-on-host.sh` once so host nginx serves https://staging.fastpaygaming.com/ and https://api-staging.fastpaygaming.com/. Full steps: see [BACKEND/nginx/STAGING_NGINX.md](BACKEND/nginx/STAGING_NGINX.md) section "Staging deploy at public URL (tested)".
+Staging uses your staging repo (e.g. FASTPAY_BASE or `/desktop/fastpay`) and is served via host nginx.
+
+1. **From repo root**, deploy with local code (no git pull by default):
+   ```bash
+   ./deploy.sh staging --no-input
+   ```
+   Or directly: `./deploy-all.sh --no-input`
+   This builds the dashboards, deploys the backend with tests, and runs verification.
+
+2. **On the staging server**, apply host nginx so public URLs work:
+   ```bash
+   sudo ./BACKEND/nginx/apply-staging-on-host.sh
+   ```
+
+3. **Check:** Open https://staging.fastpaygaming.com/, https://sredpay.fastpaygaming.com/, https://sapi.fastpaygaming.com/api/. Optionally run `./scripts/check-dns-a.sh` and `./BACKEND/scripts/check-staging-postdeploy.sh`.
+
+Staging uses host nginx only (no Traefik). Full details: [BACKEND/nginx/STAGING_NGINX.md](BACKEND/nginx/STAGING_NGINX.md) and [docs/VPS_DEPLOY_STRUCTURE.md](docs/VPS_DEPLOY_STRUCTURE.md).
 
 ---
 
@@ -180,10 +197,12 @@ curl -Ik https://fastpaygaming.com/test/
 curl -Ik https://fastpaygaming.com/test/api/
 ```
 
+Optional: run `./scripts/check-production-ready.sh` from repo root for a single preflight + post-deploy check (DNS, HTTP, browser) without deploying. See [docs/DEPLOY_PROCESS.md](docs/DEPLOY_PROCESS.md) § 5.2.
+
 For logs:
 
 ```bash
-cd /opt/FASTPAY/BACKEND
+cd /var/www/fastpay/BACKEND
 docker compose logs -f
 ```
 
@@ -192,11 +211,12 @@ docker compose logs -f
 ## Rollback (simple)
 
 1. Check out the previous commit (or restore a previous `dist/` build).
-2. Re-run the deploy:
+2. Re-run the deploy for that environment:
 
 ```bash
-cd /opt/FASTPAY
-./deploy-all.sh production --no-input
+./deploy.sh production --no-input --pull
+# or staging:
+./deploy.sh staging --no-input
 ```
 
 ---
@@ -206,8 +226,8 @@ cd /opt/FASTPAY
 Use a controlled sync to update production code from staging before deploy:
 
 ```bash
-cd /opt/FASTPAY
-./promote-from-staging.sh
+cd /var/www/fastpay
+STAGING_DIR=/path/to/staging ./promote-from-staging.sh   # optional: set if staging is elsewhere
 ```
 
 Preview changes first:
@@ -225,11 +245,11 @@ The promotion script excludes env files, runtime data, and build artifacts.
 To get Telegram alerts when dashboard or backend goes down:
 
 ```bash
-cd /root/Desktop/FASTPAY_BASE/health-monitor
+cd /path/to/your/repo/health-monitor
 cp health-monitor.env.example health-monitor.env
 # Edit: add TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_IDS
 chmod +x health-monitor.sh
-# Add to cron: */5 * * * * /root/Desktop/FASTPAY_BASE/health-monitor/health-monitor.sh
+# Add to cron: */5 * * * * /path/to/repo/health-monitor/health-monitor.sh
 ```
 
 See `health-monitor/README.md` for full setup and systemd option.

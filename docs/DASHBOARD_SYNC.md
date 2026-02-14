@@ -1,38 +1,47 @@
-# Dashboard apps – sync and roles
+# Dashboard sync (Option B)
 
-**Core:** **DASHBOARD_FASTPAY** is the common reference (core). All main dashboard development and fixes should be done there first.
+DASHBOARD_FASTPAY and DASHBOARD_REDPAY are kept as **two full copies** (Option B). This doc is the sync checklist so shared behavior stays aligned.
 
-**Variant:** **DASHBOARD_REDPAY** is the RedPay variant. It shares most code with DASHBOARD_FASTPAY but has RedPay-specific entrypoints and a few differing files (e.g. Gmail/Drive OAuth redirect, dashboard sections, RedPay app shell).
+## Roles
 
-**Legacy/fallback:** **DASHBOARD** is used only when DASHBOARD_FASTPAY is missing (e.g. deploy fallback). It is not the single source of truth.
+- **DASHBOARD_FASTPAY** — Core. Single source of truth for shared behavior; deploy for FastPay URLs.
+- **DASHBOARD_REDPAY** — Variant. Same structure; build with `VITE_REDPAY_ONLY=true` for RedPay URLs. When you change shared code, apply the same change in both.
 
----
+## Sync checklist
 
-## Scoping (Phase 3)
+When you change any of the following in one dashboard, apply the same change in the other:
 
-- **DASHBOARD vs DASHBOARD_FASTPAY:** `diff -rq DASHBOARD/src DASHBOARD_FASTPAY/src` — identical (no output).
-- **DASHBOARD_FASTPAY vs DASHBOARD_REDPAY:** A small set of files differ (e.g. `RedPayApp.tsx`, `backend-gmail-api.ts`, `dashboard-sections.ts`, `DeviceSubTabs.tsx`, `DriveSection.tsx`, `GmailSection.tsx`, `DeviceSectionView.tsx`). REDPAY also has `pages/redpay/RedpayDashboard.tsx` only in REDPAY.
-- **File counts (TS/TSX):** DASHBOARD 231, DASHBOARD_FASTPAY 231, DASHBOARD_REDPAY 232.
+- **Auth / API:** `src/lib/auth.ts`, `src/lib/api-client.ts`, `src/lib/validation/`
+- **Firebase:** `src/lib/firebase.ts`, `src/lib/firebase-helpers.ts`, `src/lib/firebase-sync.ts`
+- **Shared UI:** `src/component/` (e.g. `UnifiedLayout.tsx`, `DeviceSidebar.tsx`, `ui/`), `src/lib/branding.ts`
+- **Hooks:** `src/hooks/`
+- **Build / deploy:** `vite.config.ts`, `deploy.sh`, `package.json` (dependencies and scripts)
+- **Env:** `.env.example` (except RedPay-only vars like `VITE_REDPAY_ONLY` in DASHBOARD_REDPAY)
 
----
+## RedPay-only differences (do not sync)
 
-## When to sync (Option C – manual)
+- **DASHBOARD_REDPAY** only: `VITE_REDPAY_ONLY=true` in `.env.example` and in `deploy.sh`; `RedPayApp.tsx` and minimal routes used when that env is set; `DASHBOARD_DOCUMENTATION.md`, `Dockerfile`, `nginx.conf` if present only there.
 
-If you change shared logic in **DASHBOARD_FASTPAY** that should also apply to **DASHBOARD_REDPAY**:
+## Verification
 
-1. **Paths to consider copying or diffing:**  
-   `src/lib/*`, `src/component/*`, `src/pages/dashboard/**` (except RedPay-specific entrypoints). The differing files listed above are the ones that are intentionally different (branding, OAuth callback, RedPay dashboard); other changes in FASTPAY may be worth porting to REDPAY.
+Before pushing changes that touch shared code, run:
 
-2. **Process:**  
-   - Make the change in DASHBOARD_FASTPAY (core).  
-   - For each file you changed, if it is not one of the known differing files, consider copying or merging to DASHBOARD_REDPAY (e.g. `diff` then manual merge).  
-   - Run `npm run build` (or `build:check`) in both apps after sync.
+```bash
+./scripts/check-dashboard-sync.sh
+```
 
-3. **Frequency:**  
-   Ad hoc when you touch shared areas (auth, api-client, firebase-helpers, sidebar-tabs, shared components). No automated sync; this doc is the single reference for the process.
+This builds both dashboards (RedPay with `VITE_REDPAY_ONLY=true`) and runs their test suites. If either build fails, fix before pushing. Options:
 
----
+- `--build-only` — Skip test steps.
+- `--skip-redpay` — Only build and test DASHBOARD_FASTPAY.
 
-## Future shared codebase (Options A/B)
+CI runs the same checks on push/PR when `DASHBOARD_FASTPAY/**` or `DASHBOARD_REDPAY/**` change (see `.github/workflows/dashboard-build-test.yml`).
 
-If you introduce a shared package (A) or monorepo with `packages/dashboard-core` (B), update this doc to point to the new layout and deprecate the manual sync steps above.
+## Optional: diff check
+
+To catch accidental drift, you can diff key dirs (e.g. `src/lib`, `src/component`, `src/hooks`, `vite.config.ts`) between DASHBOARD_FASTPAY and DASHBOARD_REDPAY and fail CI or a pre-push hook if differences appear outside an allowlist (e.g. `branding.ts` content, or RedPay-only files).
+
+## References
+
+- [VPS_DEPLOY_STRUCTURE.md](VPS_DEPLOY_STRUCTURE.md) — Build matrix, env, and deploy layout.
+- [.cursor/rules/subdomain-staging-production.mdc](../.cursor/rules/subdomain-staging-production.mdc) — Subdomain convention (e.g. `sredpay` = staging RedPay).

@@ -42,8 +42,10 @@ db.sqlite3-journal
 .env.staging
 .env.*.local
 
-# Firebase credentials
+# Firebase credentials and exports
 firebase-credentials.json
+.env.firebase*
+*rtdb-export*.json
 
 # Google OAuth client secret (do not commit)
 client_secret_google.json

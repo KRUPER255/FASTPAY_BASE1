@@ -2,15 +2,48 @@
 
 This doc describes where code and config live on the server for **staging** and **production**, which URLs serve which part of the app after deploy, how to sync from GitHub, and the full deploy process.
 
+**Quick links:** Staging deploy steps (user-friendly) → [§ 6.1 Staging deploy](#61-staging-deploy-user-friendly-steps). Production → [§ 6.4 Production full deploy](#64-production-full-deploy-from-varwwwfastpay).
+
+### Path convention
+
+| Environment | Base location | Canonical path |
+| ----------- | -------------- | --------------- |
+| **Production** | Under `/var/www` | `/var/www/fastpay/` |
+| **Staging** | On Desktop | e.g. `/root/Desktop/FASTPAY_BASE` or `/desktop/fastpay` |
+
+Same layout (BACKEND/, DASHBOARD_FASTPAY/, DASHBOARD_REDPAY/) in both; only the base path differs.
+
+### FASTPAY_DEPLOY (dist and config storage)
+
+**Public URLs only change when we change FASTPAY_DEPLOY.** Development at FASTPAY_BASE does not affect what is live until a successful deploy runs.
+
+| Path | Purpose |
+|------|---------|
+| `/var/www/FASTPAY_DEPLOY/` | Central storage for dist and deployed config |
+| `dist/staging/{fastpay,redpay}` | Built dashboards for staging (staging.fastpaygaming.com, sredpay) |
+| `dist/production/{fastpay,redpay}` | Built dashboards for production (fastpaygaming.com, redpay) |
+| `config/staging/backend.env` | Deployed backend config for staging |
+| `config/production/backend.env` | Deployed backend config for production |
+
+On successful deploy, `deploy-all.sh` (staging) and `deploy-production.sh` (production) rsync dist and copy backend .env to FASTPAY_DEPLOY. Nginx and Docker serve from there.
+
 ---
 
 ## Dashboard apps in this repo
 
 - **DASHBOARD_FASTPAY** — **Common reference (core).** Canonical FastPay dashboard; primary build for staging/production (deploy-all.sh); nginx serves its `dist/`.
 - **DASHBOARD_REDPAY** — RedPay variant; built and deployed separately (e.g. RedPay domain).
-- **DASHBOARD** — Legacy/fallback; used when DASHBOARD_FASTPAY is missing. Not the single source of code for FASTPAY or REDPAY. Some docs use "DASHBOARD" as a generic name; the actual core is DASHBOARD_FASTPAY.
 
 For dashboard development, edit **DASHBOARD_FASTPAY** (core) or **DASHBOARD_REDPAY** (RedPay). See sections below for deploy layout and URLs.
+
+### Build matrix
+
+| Dashboard | Staging env | Production env | Main URL (staging) | Main URL (production) |
+| --------- | ----------- | --------------- | ------------------- | ---------------------- |
+| **DASHBOARD_FASTPAY** | `.env.staging` (no `VITE_REDPAY_ONLY` or `false`) | `.env.production` (same) | `https://staging.fastpaygaming.com/` | `https://fastpaygaming.com/` |
+| **DASHBOARD_REDPAY** | `.env.staging` with `VITE_REDPAY_ONLY=true` | `.env.production` with `VITE_REDPAY_ONLY=true` | `https://sredpay.fastpaygaming.com/` | `https://redpay.fastpaygaming.com/` |
+
+RedPay builds must set **`VITE_REDPAY_ONLY=true`** at build time so the bundle boots the RedPay-only app (login + minimal dashboard). DASHBOARD_REDPAY’s `deploy.sh` sets this when not already set by the env file. For keeping both dashboards in sync when editing shared code, see [docs/DASHBOARD_SYNC.md](DASHBOARD_SYNC.md).
 
 ---
 
@@ -23,6 +56,7 @@ Base path: **`/var/www/fastpay/`**
 ```
 /var/www/fastpay/
 ├── BACKEND/                    # Backend app, deploy.sh, .env.production, Docker Compose
+│   └── nginx/                  # Nginx configs (see “Where is nginx?” below)
 ├── DASHBOARD_FASTPAY/          # FastPay dashboard source + dist/ + .env.production
 └── DASHBOARD_REDPAY/           # RedPay dashboard source + dist/ + .env.production
 ```
@@ -38,11 +72,40 @@ Base path: **`/desktop/fastpay/`**
 ```
 /desktop/fastpay/
 ├── BACKEND/                    # Backend app, .env.staging, docker-compose.staging
+│   └── nginx/                  # Nginx configs (see “Where is nginx?” below)
 ├── DASHBOARD_FASTPAY/          # FastPay dashboard source + dist/ + .env.staging
 └── DASHBOARD_REDPAY/           # RedPay dashboard source + dist/ + .env.staging
 ```
 
 Same three directories; env files use `.env.staging` (and optionally `.env.redpay` for RedPay staging).
+
+### Where is nginx?
+
+**In the repo:** Nginx configs live under **`BACKEND/nginx/`** (same for both environments). That folder is not a separate top-level app; it sits inside BACKEND.
+
+```
+BACKEND/
+├── nginx/
+│   ├── nginx.conf              # Main config (used by Docker nginx container)
+│   ├── conf.d/
+│   │   ├── production/         # Production server blocks (fastpaygaming.com, api, admin, redpay)
+│   │   └── staging/            # Staging server blocks (staging, sapi, sadmin, sredpay)
+│   ├── html/                   # Static HTML (api index, welcome, join)
+│   ├── apply-staging-on-host.sh   # Copy staging configs to host nginx
+│   ├── apply-prod-api-admin-redpay-welcome.sh
+│   └── README.md, STAGING_NGINX.md, ...
+├── deploy.sh
+├── docker-compose.yml
+├── docker-compose.staging.yml
+└── ...
+```
+
+**At runtime there are two nginx roles:**
+
+| Role | Where | Purpose |
+|------|--------|--------|
+| **Docker nginx (staging)** | Container started by `docker-compose.staging.yml` (inside BACKEND) | Serves FastPay/RedPay from mounted `FASTPAY_DEPLOY/dist/staging/{fastpay,redpay}`, listens on port 8888. |
+| **Host nginx** | System nginx on the server (`/etc/nginx/`) | Terminates SSL and proxies public hostnames (staging.fastpaygaming.com, sapi, sadmin, sredpay, and production api/admin/redpay) to the right backends (e.g. 8888, 8001) or serves static from `FASTPAY_DEPLOY/dist/`. Configs are **copied** from `BACKEND/nginx/conf.d/staging` or `conf.d/production` using the apply scripts. |
 
 ### Summary table
 
@@ -64,10 +127,9 @@ After deploy, use these URLs to reach each part of the app:
 | URL | What it serves |
 | ----- | ----------------- |
 | `https://staging.fastpaygaming.com/` | FastPay dashboard (DASHBOARD_FASTPAY build) |
-| `https://redpay-staging.fastpaygaming.com/` | RedPay dashboard (DASHBOARD_REDPAY build; host nginx serves from `/desktop/fastpay/DASHBOARD_REDPAY/dist`) |
-| `https://axisurgent.fastpaygaming.com/` | AXISURGENT app (redirects to `/axisurgent`) |
-| `https://api-staging.fastpaygaming.com/api/` | Backend API |
-| `https://admin-staging.fastpaygaming.com/admin/` | Django admin |
+| `https://sredpay.fastpaygaming.com/` | RedPay dashboard (host nginx serves from `/var/www/FASTPAY_DEPLOY/dist/staging/redpay`) |
+| `https://sapi.fastpaygaming.com/api/` | Backend API |
+| `https://sadmin.fastpaygaming.com/admin/` | Django admin |
 
 ### Production
 
@@ -85,7 +147,7 @@ After deploy, use these URLs to reach each part of the app:
 ## 3. Nginx – where the built dashboard is served from
 
 - **Production:** Main FastPay dashboard is served from `root /var/www/fastpay/DASHBOARD_FASTPAY/dist`. If RedPay has its own vhost, use `root /var/www/fastpay/DASHBOARD_REDPAY/dist` for that server block.
-- **Staging:** FastPay dashboard is served by the staging nginx container, which mounts **`/desktop/fastpay/DASHBOARD_FASTPAY/dist`** (set via `STAGING_DASHBOARD_DIST_PATH` in BACKEND env). Host nginx proxies `staging.fastpaygaming.com` to that container (port 8888). RedPay staging is served directly by host nginx from **`/desktop/fastpay/DASHBOARD_REDPAY/dist`** at `redpay-staging.fastpaygaming.com` (see `BACKEND/nginx/conf.d/staging-05-redpay.conf`).
+- **Staging:** FastPay dashboard is served by the staging nginx container, which mounts **`/desktop/fastpay/DASHBOARD_FASTPAY/dist`** (set via `STAGING_DASHBOARD_DIST_PATH` in BACKEND env). Host nginx proxies `staging.fastpaygaming.com` to that container (port 8888). RedPay staging is served directly by host nginx from **`/desktop/fastpay/DASHBOARD_REDPAY/dist`** at `sredpay.fastpaygaming.com` (see `BACKEND/nginx/conf.d/staging/04-redpay.conf`, deployed as `staging-04-redpay.conf`).
 
 See **BACKEND/nginx/STAGING_NGINX.md** and **BACKEND/nginx/** configs for full nginx setup. For Gmail/Drive OAuth, see **BACKEND/docs/GMAIL_DRIVE_DEPLOY.md**.
 
@@ -135,69 +197,126 @@ The script will **clone** the monorepo into the base path if it does not exist, 
 
 ## 5. Env file locations
 
-| Environment | Base path           | BACKEND env               | DASHBOARD_FASTPAY env               | DASHBOARD_REDPAY env                     |
-| ----------- | ------------------- | ------------------------- | ------------------------------------ | ---------------------------------------- |
-| Production  | `/var/www/fastpay/` | `BACKEND/.env.production` | `DASHBOARD_FASTPAY/.env.production`  | `DASHBOARD_REDPAY/.env.production` or `.env.redpay-prod` |
-| Staging     | `/desktop/fastpay/` | `BACKEND/.env.staging`    | `DASHBOARD_FASTPAY/.env.staging`     | `DASHBOARD_REDPAY/.env.staging` or `.env.redpay`         |
+| Environment | Base path           | BACKEND env (edit in repo) | Deployed config (updated on deploy) |
+| ----------- | ------------------- | -------------------------- | ----------------------------------- |
+| Production  | `/var/www/fastpay/` | `BACKEND/.env.production`  | `FASTPAY_DEPLOY/config/production/backend.env` |
+| Staging     | `/root/Desktop/FASTPAY_BASE` or `/desktop/fastpay/` | `BACKEND/.env.staging` | `FASTPAY_DEPLOY/config/staging/backend.env` |
 
-All paths are under the environment base path. Copy from `.env.example` in each project and fill values.
+Dashboard env: `DASHBOARD_FASTPAY/.env.{staging|production}` and `DASHBOARD_REDPAY/.env.{staging|production}` (build-time only; values baked into dist).
+
+Set `FASTPAY_DEPLOY_BASE=/var/www/FASTPAY_DEPLOY` in BACKEND `.env.staging` and `.env.production`. Create structure: `sudo ./scripts/create-fastpay-deploy-dirs.sh`.
 
 ---
 
 ## 6. Complete deploy process
 
-All commands assume you are using the **correct base path** for the environment (`/desktop/fastpay` for staging, `/var/www/fastpay` for production). For staging, run from **`/desktop/fastpay`** (or set `REPO_ROOT`/script vars to that path).
+### 6.1 Staging deploy (user-friendly steps)
 
-### 6.1 First-time setup (per environment)
+**Where to run:** From your staging repo root (e.g. `/desktop/fastpay` or your clone). Staging uses **local code only**—no git pull unless you choose to.
 
-**Staging (base: `/desktop/fastpay`):**
+**Before you start (first time only):**
+- Docker and Docker Compose installed.
+- Env files exist: `BACKEND/.env.staging`, `DASHBOARD_FASTPAY/.env.staging`, `DASHBOARD_REDPAY/.env.staging` (copy from `.env.example` in each folder and fill in).
+- Create FASTPAY_DEPLOY structure: `sudo ./scripts/create-fastpay-deploy-dirs.sh`. In `BACKEND/.env.staging` set `FASTPAY_DEPLOY_BASE=/var/www/FASTPAY_DEPLOY`.
 
-1. Create base dir: `mkdir -p /desktop/fastpay && cd /desktop/fastpay`
-2. Get code: run `./scripts/sync-from-github.sh staging` from repo root (or clone the monorepo so that `BACKEND/`, `DASHBOARD_FASTPAY/`, `DASHBOARD_REDPAY/` exist under `/desktop/fastpay/`).
-3. Env files: copy and fill from `.env.example` in each project:
-   - `BACKEND/.env.staging`
-   - `DASHBOARD_FASTPAY/.env.staging`
-   - `DASHBOARD_REDPAY/.env.staging` (or `.env.redpay`)
-4. Backend: ensure Docker/Docker Compose is installed. In `BACKEND/.env.staging` set `STAGING_DASHBOARD_DIST_PATH=/desktop/fastpay/DASHBOARD_FASTPAY/dist` (or `../DASHBOARD_FASTPAY/dist`).
-5. (Optional) Host nginx: if staging is exposed via host nginx, run `sudo BACKEND/nginx/apply-staging-on-host.sh` from repo root; ensure certs/ACME as in **BACKEND/nginx/STAGING_NGINX.md**.
+**Option A — One command (recommended)**
 
-**Production (base: `/var/www/fastpay`):**
+From the repo root:
+
+```bash
+./deploy-all.sh --no-input
+```
+
+This will:
+1. Build the FastPay dashboard (and RedPay if present).
+2. Deploy the backend (Django, DB, Redis, nginx in Docker) using your local code.
+3. Run tests and show verification results.
+
+Then **on the server** (so the public URLs work), run once or after nginx config changes:
+
+```bash
+sudo ./BACKEND/nginx/apply-staging-on-host.sh
+```
+
+**Option B — Step by step**
+
+| Step | What to do | Command |
+|------|------------|--------|
+| 1 | (Optional) Update code from GitHub | `./scripts/sync-from-github.sh staging` or `git pull origin main` |
+| 2 | Build FastPay dashboard | `cd DASHBOARD_FASTPAY && npm ci && ./deploy.sh staging` |
+| 3 | Build RedPay dashboard (if you use it) | `cd DASHBOARD_REDPAY && npm ci && ./deploy.sh staging` |
+| 4 | Deploy backend (local code only) | `cd BACKEND && ./deploy.sh staging --no-input` |
+| 5 | On the server: apply host nginx | `sudo ./BACKEND/nginx/apply-staging-on-host.sh` |
+| 6 | Verify | See “Verify” below |
+
+**Verify after deploy**
+
+- Local backend: `curl -s http://localhost:8001/health/` → should print `ok`.
+- In browser: https://staging.fastpaygaming.com/ (FastPay), https://sredpay.fastpaygaming.com/ (RedPay), https://sapi.fastpaygaming.com/api/ (API).
+- Automated checks run automatically at end of `deploy-all.sh`. Or run manually (from repo root):  
+  `./BACKEND/scripts/check-staging-postdeploy.sh`. If any fail, deploy is treated as failed.
+
+**Useful options for deploy-all.sh**
+
+- `./deploy-all.sh --no-input` — Non-interactive; no prompts.
+- `./deploy-all.sh --skip-tests` — Skip backend tests (faster).
+- `./deploy-all.sh --pull` — Update from GitHub first, then deploy (otherwise staging uses local code only).
+- `./deploy-all.sh dashboard` — Only build dashboards (no backend).
+- `./deploy-all.sh backend` — Only deploy backend (no dashboard build).
+
+---
+
+### 6.2 First-time setup (per environment)
+
+**One-command first-time setup (recommended):**
+
+- **Staging (on Desktop):**  
+  `./scripts/setup-staging-first-time.sh`  
+  (or `STAGING_BASE=/path/to/staging ./scripts/setup-staging-first-time.sh` from any clone)
+- **Production (under /var/www):**  
+  `PRODUCTION_BASE=/var/www/fastpay ./scripts/setup-production-first-time.sh`  
+  (run from any clone; or on server: clone once then `cd /var/www/fastpay && ./scripts/setup-production-first-time.sh`)
+
+These scripts: create base dir, clone repo (if needed), create `.env.staging` / `.env.production` from `.env.example`, set dashboard dist paths, make deploy scripts executable, and create `/var/www/certbot` for production. **Database (PostgreSQL + Redis)** is created automatically by Docker on first deploy. After setup, edit the env files with real secrets, then run the deploy script.
+
+**Manual equivalent – Staging (base: `/root/Desktop/FASTPAY_BASE` or `/desktop/fastpay`):**
+
+1. Create base dir and get code (or clone the monorepo).
+2. Create FASTPAY_DEPLOY structure: `sudo ./scripts/create-fastpay-deploy-dirs.sh`
+3. Env files: copy and fill from `.env.example` in each project: `BACKEND/.env.staging`, `DASHBOARD_FASTPAY/.env.staging`, `DASHBOARD_REDPAY/.env.staging`.
+4. In `BACKEND/.env.staging` set `FASTPAY_DEPLOY_BASE=/var/www/FASTPAY_DEPLOY`.
+5. (Optional) Host nginx: `sudo BACKEND/nginx/apply-staging-on-host.sh`; see **BACKEND/nginx/STAGING_NGINX.md**.
+
+**Manual equivalent – Production (base: `/var/www/fastpay`):**
 
 1. Create base dir: `sudo mkdir -p /var/www/fastpay && cd /var/www/fastpay`
-2. Get code: run `./scripts/sync-from-github.sh production` from repo root (or clone so that `BACKEND/`, `DASHBOARD_FASTPAY/`, `DASHBOARD_REDPAY/` exist).
-3. Env files: create and fill:
-   - `BACKEND/.env.production`
-   - `DASHBOARD_FASTPAY/.env.production`
-   - `DASHBOARD_REDPAY/.env.production` (or `.env.redpay-prod`)
-4. Backend: set `DASHBOARD_DIST_PATH=/var/www/fastpay/DASHBOARD_FASTPAY/dist` (and RedPay path if used) in `BACKEND/.env.production` or in the compose invocation.
-5. Nginx: install configs that use `root /var/www/fastpay/DASHBOARD_FASTPAY/dist` (and RedPay vhost if needed); SSL as per BACKEND/nginx docs.
+2. Get code: run `./scripts/sync-from-github.sh production` from repo root (or clone).
+3. Env files: create from `.env.example`: `BACKEND/.env.production`, `DASHBOARD_FASTPAY/.env.production`, `DASHBOARD_REDPAY/.env.production`.
+4. In `BACKEND/.env.production` set `FASTPAY_DEPLOY_BASE=/var/www/FASTPAY_DEPLOY`.
+5. Nginx: install configs from BACKEND/nginx; SSL as per BACKEND/nginx docs.
 
-### 6.2 Staging full deploy (from `/desktop/fastpay`)
+### 6.3 Staging full deploy (reference)
 
-1. **Sync from GitHub (recommended):**  
-   From repo root (or with `REPO_BASE=/desktop/fastpay`):  
-   `./scripts/sync-from-github.sh staging [--branch main]`  
-   Or manually: `cd /desktop/fastpay && git pull origin main`.
-2. **Build FastPay dashboard:**  
-   `cd /desktop/fastpay/DASHBOARD_FASTPAY && npm ci && ./deploy.sh staging`  
-   → produces `dist/`.
-3. **Build RedPay dashboard (if used):**  
-   `cd /desktop/fastpay/DASHBOARD_REDPAY && npm ci && ./deploy.sh staging`  
-   → produces `dist/`.
-4. **Deploy backend:**  
-   `cd /desktop/fastpay/BACKEND && ./deploy.sh staging [--no-input] [--skip-tests]`  
-   → uses `.env.staging`, mounts `STAGING_DASHBOARD_DIST_PATH` (e.g. `/desktop/fastpay/DASHBOARD_FASTPAY/dist`) in staging nginx container.
-5. **Apply host nginx (if used):**  
-   `sudo /desktop/fastpay/BACKEND/nginx/apply-staging-on-host.sh`
-6. **Verify:**  
-   - Backend: `curl -s http://localhost:8001/health/`  
-   - Dashboard: open https://staging.fastpaygaming.com/ (or your proxy target)  
-   - API: `curl -s https://api-staging.fastpaygaming.com/api/`
+Manual equivalent of deploy-all for staging (from `/desktop/fastpay`):
 
-**Single-command staging (if using deploy-all.sh):**  
-From `/desktop/fastpay`, run `./deploy-all.sh [all|dashboard|backend] [--pull] [--skip-tests] [--no-input]`. With `--pull`, deploy-all.sh runs `./scripts/sync-from-github.sh staging` first (when the script is in repo root).
+1. (Optional) Sync: `./scripts/sync-from-github.sh staging` or `git pull origin main`
+2. Build FastPay: `cd DASHBOARD_FASTPAY && npm ci && ./deploy.sh staging`
+3. Build RedPay (if used): `cd DASHBOARD_REDPAY && npm ci && ./deploy.sh staging`
+4. Deploy backend: `cd BACKEND && ./deploy.sh staging [--no-input] [--skip-tests]` (staging always uses local code)
+5. On server: `sudo ./BACKEND/nginx/apply-staging-on-host.sh`
+6. Verify: `curl -s http://localhost:8001/health/`, open https://staging.fastpaygaming.com/. Post-deploy checks (DNS, HTTP, browser console) run automatically at end of deploy; or run `./BACKEND/scripts/check-staging-postdeploy.sh` manually.
 
-### 6.3 Production full deploy (from `/var/www/fastpay`)
+### 6.4 Production full deploy (from `/var/www/fastpay`)
+
+**One command (fetch from GitHub then deploy):**
+
+```bash
+cd /var/www/fastpay && ./scripts/deploy-production-from-github.sh
+```
+
+Optional: `--branch NAME`, `--tag TAG`, `--commit SHA`, `--skip-tests`, `--skip-redpay`, `dashboard` / `backend` / `all`. See `scripts/deploy-production-from-github.sh` for usage.
+
+**Manual steps (equivalent):**
 
 1. **Sync from GitHub (recommended):**  
    `./scripts/sync-from-github.sh production [--branch production]` or `[--tag v1.2.3]`  
@@ -214,9 +333,9 @@ From `/desktop/fastpay`, run `./deploy-all.sh [all|dashboard|backend] [--pull] [
 5. **Reload host nginx (if serving static from host):**  
    `sudo nginx -t && sudo systemctl reload nginx`
 6. **Verify:**  
-   Backend health, API URL, and dashboard URLs (main and RedPay if applicable).
+   Backend health, API URL, and dashboard URLs. Run `./BACKEND/scripts/check-production-postdeploy.sh` for automated checks.
 
-### 6.4 Partial redeploys
+### 6.5 Partial redeploys
 
 - **Dashboard only (staging):**  
   `cd /desktop/fastpay/DASHBOARD_FASTPAY && ./deploy.sh staging`  
@@ -227,6 +346,25 @@ From `/desktop/fastpay`, run `./deploy-all.sh [all|dashboard|backend] [--pull] [
   Reload host nginx if it serves from that dist.
 - **Backend only:**  
   `cd <base>/BACKEND && ./deploy.sh staging` or `./deploy.sh production` (no dashboard build).
+
+### 6.6 Post-deploy checks (automated)
+
+Staging and production post-deploy scripts run DNS, HTTP status, and **browser console** checks:
+
+- **Staging:** `./BACKEND/scripts/check-staging-postdeploy.sh`
+- **Production:** `./BACKEND/scripts/check-production-postdeploy.sh`
+
+**Single production check (no deploy):** From repo root, `./scripts/check-production-ready.sh` runs preflight plus post-deploy checks for a quick production “freshen up”. Use `PRODUCTION_BASE=/var/www/fastpay` when run from another clone.
+
+The browser console check uses Playwright (headless Chromium) to load dashboard URLs and fail if any JavaScript console errors or uncaught exceptions occur (e.g. `VITE_API_BASE_URL is not set`).
+
+**One-time setup for browser checks:** From repo root, run once per environment:
+
+```bash
+cd BACKEND/scripts/deploy-checks && npm install && npx playwright install chromium
+```
+
+The post-deploy scripts will auto-install on first run if Node is available. If Node/Playwright is not installed, the browser check is skipped with a warning. Use `SKIP_BROWSER_CHECK=1` to skip explicitly.
 
 ---
 

@@ -25,7 +25,7 @@ if [[ -f "$ENV_FILE" ]]; then
 fi
 
 # URLs to check (override in env: HEALTH_URLS="url1 url2 ...")
-DEFAULT_URLS="https://fastpaygaming.com/ https://fastpaygaming.com/health/ https://api.fastpaygaming.com/api/ https://staging.fastpaygaming.com/ https://api-staging.fastpaygaming.com/api/ https://owner.fastpaygaming.com/"
+DEFAULT_URLS="https://fastpaygaming.com/ https://fastpaygaming.com/health/ https://api.fastpaygaming.com/api/ https://staging.fastpaygaming.com/ https://sapi.fastpaygaming.com/api/ https://owner.fastpaygaming.com/"
 HEALTH_URLS_STR="${HEALTH_URLS:-$DEFAULT_URLS}"
 read -ra HEALTH_URLS <<< "$HEALTH_URLS_STR"
 

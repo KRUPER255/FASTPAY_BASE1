@@ -18,16 +18,33 @@ services:
       - POSTGRES_USER=${DB_USER:-fastpay_user}
       - POSTGRES_PASSWORD=${DB_PASSWORD:-changeme}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U fastpay_user"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-fastpay_user}"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - fastpay_staging
+      fastpay_staging:
+        aliases:
+          - postgres-staging
     restart: unless-stopped
 
   web:
     build: .
+    networks:
+      - fastpay_staging
+      - fastpay_base_web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=fastpay_base_web"
+      - "traefik.http.routers.staging-api.rule=Host(`sapi.fastpaygaming.com`)"
+      - "traefik.http.routers.staging-api.entrypoints=websecure"
+      - "traefik.http.routers.staging-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.staging-api.loadbalancer.server.port=8000"
+      - "traefik.http.services.staging-api.loadbalancer.passhostheader=true"
+      - "traefik.http.routers.staging-admin.rule=Host(`sadmin.fastpaygaming.com`)"
+      - "traefik.http.routers.staging-admin.entrypoints=websecure"
+      - "traefik.http.routers.staging-admin.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.staging-admin.service=staging-api"
     command: >
       sh -c "python manage.py migrate &&
              python manage.py collectstatic --noinput &&
@@ -42,7 +59,7 @@ services:
     ports:
       - "8001:8000"
     env_file:
-      - .env.staging
+      - ${FASTPAY_DEPLOY_BASE:-/var/www/FASTPAY_DEPLOY}/config/staging/backend.env
     depends_on:
       db:
         condition: service_healthy
@@ -54,8 +71,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    networks:
-      - fastpay_staging
     restart: unless-stopped
 
   nginx:
@@ -66,16 +81,48 @@ services:
       - "8888:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/conf.d.staging:/etc/nginx/conf.d:ro
-      # FASTPAY: serve full FASTPAY dashboard build from DASHBOARD_FASTPAY/dist (staging base: /desktop/fastpay)
-      - ${STAGING_DASHBOARD_DIST_PATH:-/desktop/fastpay/DASHBOARD_FASTPAY/dist}:/usr/share/nginx/html:ro
+      - ./nginx/conf.d/staging-container:/etc/nginx/conf.d:ro
+      # FASTPAY: serve from FASTPAY_DEPLOY (only updated on successful deploy)
+      - ${STAGING_DASHBOARD_DIST_PATH:-/var/www/FASTPAY_DEPLOY/dist/staging/fastpay}:/usr/share/nginx/html:ro
     depends_on:
       web:
         condition: service_healthy
     networks:
       - fastpay_staging
+      - fastpay_base_web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=fastpay_base_web"
+      - "traefik.http.routers.staging-dashboard.rule=Host(`staging.fastpaygaming.com`)"
+      - "traefik.http.routers.staging-dashboard.entrypoints=websecure"
+      - "traefik.http.routers.staging-dashboard.tls.certresolver=letsencrypt"
+      - "traefik.http.services.staging-dashboard.loadbalancer.server.port=80"
+    restart: unless-stopped
+
+  redpay-nginx:
+    image: nginx:alpine
+    expose:
+      - "80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d/staging-redpay-container.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${STAGING_REDPAY_DIST_PATH:-/var/www/FASTPAY_DEPLOY/dist/staging/redpay}:/usr/share/nginx/html:ro
+    depends_on:
+      - web
+    networks:
+      - fastpay_staging
+      - fastpay_base_web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=fastpay_base_web"
+      - "traefik.http.routers.staging-redpay.rule=Host(`sredpay.fastpaygaming.com`)"
+      - "traefik.http.routers.staging-redpay.entrypoints=websecure"
+      - "traefik.http.routers.staging-redpay.tls.certresolver=letsencrypt"
+      - "traefik.http.services.staging-redpay.loadbalancer.server.port=80"
     restart: unless-stopped
 
 networks:
   fastpay_staging:
     driver: bridge
+  fastpay_base_web:
+    external: true

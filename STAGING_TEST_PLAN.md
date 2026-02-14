@@ -94,7 +94,7 @@ This runs all automatable checks (health endpoints, validate_env, Docker healthc
 |---|------|----------|-------|
 | 7.1 | `cd BACKEND && ./verify_firebase_connection.sh` | Script runs; uses BASE_DIR = parent of BACKEND (FASTPAY_BASE) | |
 | 7.2 | Script looks for APK config at `$BASE_DIR/FASTPAY_APK/FASTPAY_BASE/app/google-services.json` and `$BASE_DIR/APK/...` | No wrong path to /opt/FASTPAY (production) | |
-| 7.3 | Script uses `DASHBOARD_ENV` and `BACKEND_ENV` under `$BASE_DIR` (DASHBOARD/.env.production, BACKEND/.env.production) | Correct paths printed or used | |
+| 7.3 | Script uses `DASHBOARD_ENV` and `BACKEND_ENV` under `$BASE_DIR` (DASHBOARD_FASTPAY/.env.production, BACKEND/.env.production) | Correct paths printed or used | |
 | 7.4 | If staging compose is used (BASE_DIR contains FASTPAY_BASE), script runs `docker compose -f docker-compose.staging.yml` (or equivalent) | No hardcoded docker-compose or /opt/FASTPAY | |
 | 7.5 | If web container is up: "Testing Django Backend Firebase Connection" step runs and reports SUCCESS or ERROR | Firebase init test runs in container | |
 
@@ -125,7 +125,7 @@ This runs all automatable checks (health endpoints, validate_env, Docker healthc
 |---|------|----------|-------|
 | 10.1 | `cat FASTPAY_APK/FASTPAY_BASE/FIREBASE_SETUP.md` | File exists and describes Firebase Console, google-services.json, and alignment with Dashboard/Backend | |
 | 10.2 | `cat BACKEND/api/utils/FIREBASE_PATHS.md` | File exists and lists canonical vs legacy paths | |
-| 10.3 | `grep -E "REDIS_URL|VITE_API_MAX_RETRIES|VITE_API_TIMEOUT" BACKEND/.env.example DASHBOARD/.env.example` | REDIS_URL in Backend; retry/timeout vars or comments in Dashboard | |
+| 10.3 | `grep -E "REDIS_URL|VITE_API_MAX_RETRIES|VITE_API_TIMEOUT" BACKEND/.env.example DASHBOARD_FASTPAY/.env.example` | REDIS_URL in Backend; retry/timeout vars or comments in Dashboard | |
 
 ---
 

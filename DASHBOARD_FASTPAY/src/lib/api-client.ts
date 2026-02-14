@@ -123,8 +123,43 @@ export function getApiUrl(endpoint: string): string {
 }
 
 /**
+ * Fetch companies from Django API
+ */
+export async function fetchCompanies(): Promise<Company[]> {
+  try {
+    const url = getApiUrl('/companies/')
+    const response = await fetchWithRetry(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch companies: ${response.status} ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    if (Array.isArray(data)) {
+      return data
+    }
+    if (data.success === true && Array.isArray(data.data)) {
+      return data.data
+    }
+    if (Array.isArray(data.results)) {
+      return data.results
+    }
+    return []
+  } catch (error) {
+    console.error('Error fetching companies from Django:', error)
+    throw error
+  }
+}
+
+/**
  * Fetch devices from Django API
- * @param filters Optional filters (code, is_active, device_id, user_email)
+ * @param filters Optional filters (code, is_active, device_id, user_email, company_code)
  * @returns Array of devices
  */
 export async function fetchDevices(filters?: {
@@ -132,6 +167,7 @@ export async function fetchDevices(filters?: {
   is_active?: boolean
   device_id?: string
   user_email?: string
+  company_code?: string
 }): Promise<any[]> {
   try {
     let url = getApiUrl('/devices/')
@@ -142,6 +178,7 @@ export async function fetchDevices(filters?: {
     if (filters?.code) params.append('code', filters.code)
     if (filters?.is_active !== undefined) params.append('is_active', String(filters.is_active))
     if (filters?.device_id) params.append('device_id', filters.device_id)
+    if (filters?.company_code) params.append('company_code', filters.company_code)
     
     if (params.toString()) {
       url += `?${params.toString()}`
@@ -160,12 +197,33 @@ export async function fetchDevices(filters?: {
     }
 
     const data = await response.json()
-    // Django REST Framework returns results in a 'results' array if paginated, otherwise it's an array
-    return Array.isArray(data) ? data : (data.results || [])
+    // Handle different response formats:
+    // 1. Direct array: [device1, device2, ...]
+    // 2. Paginated DRF: {results: [...], count: N}
+    // 3. Custom wrapper: {success: true, data: [...]}
+    if (Array.isArray(data)) {
+      return data
+    }
+    if (data.success === true && Array.isArray(data.data)) {
+      return data.data
+    }
+    if (Array.isArray(data.results)) {
+      return data.results
+    }
+    return []
   } catch (error) {
     console.error('Error fetching devices from Django:', error)
     throw error
   }
+}
+
+export interface Company {
+  id: number
+  code: string
+  name: string
+  is_active: boolean
+  created_at?: string
+  updated_at?: string
 }
 
 export interface DashboardUser {
@@ -173,6 +231,8 @@ export interface DashboardUser {
   full_name: string | null
   access_level: number
   status: string
+  company_code?: string
+  company_name?: string
   assigned_device_count: number
 }
 
@@ -196,39 +256,83 @@ export async function fetchDashboardUsers(adminEmail: string): Promise<Dashboard
 }
 
 /**
- * Assign devices to a user (admin-only)
+ * Allocate devices to a company (admin-only)
+ * Devices are allocated to companies, not individual users. All users in the company will see these devices.
+ */
+export async function allocateDevicesToCompany(
+  adminEmail: string,
+  companyCode: string,
+  deviceIds: string[]
+): Promise<{ allocated_count: number }> {
+  const response = await fetchWithRetry(getApiUrl('/devices/assign/'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({
+      admin_email: adminEmail,
+      company_code: companyCode.toUpperCase(),
+      device_ids: deviceIds,
+    }),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.error || 'Failed to allocate devices to company')
+  return { allocated_count: data.allocated_count ?? 0 }
+}
+
+/**
+ * Unallocate devices from a company (admin-only)
+ */
+export async function unallocateDevicesFromCompany(
+  adminEmail: string,
+  companyCode: string,
+  deviceIds: string[]
+): Promise<{ unallocated_count: number }> {
+  const response = await fetchWithRetry(getApiUrl('/devices/unassign/'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({
+      admin_email: adminEmail,
+      company_code: companyCode.toUpperCase(),
+      device_ids: deviceIds,
+    }),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.error || 'Failed to unallocate devices from company')
+  return { unallocated_count: data.unallocated_count ?? 0 }
+}
+
+/**
+ * @deprecated Use allocateDevicesToCompany instead. Devices are now allocated to companies, not users.
  */
 export async function assignDevicesToUser(
   adminEmail: string,
   userEmail: string,
   deviceIds: string[]
 ): Promise<{ assigned_count: number }> {
-  const response = await fetchWithRetry(getApiUrl('/devices/assign/'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-    body: JSON.stringify({ admin_email: adminEmail, user_email: userEmail, device_ids: deviceIds }),
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.error || 'Failed to assign devices')
-  return { assigned_count: data.assigned_count ?? 0 }
+  console.warn('assignDevicesToUser is deprecated. Use allocateDevicesToCompany instead.')
+  // For backward compatibility, try to get user's company and allocate to that
+  const users = await fetchDashboardUsers(adminEmail)
+  const user = users.find(u => u.email === userEmail)
+  if (user && user.company_code) {
+    return allocateDevicesToCompany(adminEmail, user.company_code, deviceIds)
+  }
+  throw new Error('User not found or has no company assigned')
 }
 
 /**
- * Unassign devices from a user (admin-only)
+ * @deprecated Use unallocateDevicesFromCompany instead.
  */
 export async function unassignDevicesFromUser(
   adminEmail: string,
   userEmail: string,
   deviceIds: string[]
 ): Promise<{ unassigned_count: number }> {
-  const response = await fetchWithRetry(getApiUrl('/devices/unassign/'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-    body: JSON.stringify({ admin_email: adminEmail, user_email: userEmail, device_ids: deviceIds }),
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.error || 'Failed to unassign devices')
-  return { unassigned_count: data.unassigned_count ?? 0 }
+  console.warn('unassignDevicesFromUser is deprecated. Use unallocateDevicesFromCompany instead.')
+  const users = await fetchDashboardUsers(adminEmail)
+  const user = users.find(u => u.email === userEmail)
+  if (user && user.company_code) {
+    return unallocateDevicesFromCompany(adminEmail, user.company_code, deviceIds)
+  }
+  throw new Error('User not found or has no company assigned')
 }
 
 /**

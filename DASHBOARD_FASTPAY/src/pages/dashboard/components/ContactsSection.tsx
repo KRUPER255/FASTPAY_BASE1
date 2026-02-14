@@ -210,8 +210,8 @@ export function ContactsSection({
                           key={`${contact.phone}-${index}`}
                           className={
                             index % 2 === 0
-                              ? 'bg-slate-200/60 dark:bg-slate-700/60'
-                              : 'bg-slate-50/30 dark:bg-slate-900/30'
+                              ? 'bg-muted/50 dark:bg-muted/60'
+                              : 'bg-muted/20 dark:bg-muted/30'
                           }
                         >
                           <TableCell className="font-mono text-xs group relative">

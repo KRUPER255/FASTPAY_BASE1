@@ -18,10 +18,11 @@ import {
 import type { DashboardSectionType } from '@/pages/dashboard/types'
 import { DeviceSectionView } from '@/pages/dashboard/views/DeviceSectionView'
 import { BankcardSectionView } from '@/pages/dashboard/views/BankcardSectionView'
+import { BankCardListSidebar } from '@/pages/dashboard/components/BankCardListSidebar'
 import { UtilitySectionView } from '@/pages/dashboard/views/UtilitySectionView'
 import { ApiSectionView } from '@/pages/dashboard/views/ApiSectionView'
-import { ProfileSectionView } from '@/pages/dashboard/views/ProfileSectionView'
 import { UserManagementSectionView } from '@/pages/dashboard/views/UserManagementSectionView'
+import { BankCardSidebar } from '@/component/BankCardSidebar'
 
 function readStoredSection(accessLevel: number): DashboardSectionType {
   const validKeys = getVisibleSections(accessLevel).map(s => s.key)
@@ -87,6 +88,8 @@ export function DashboardShell({
         batteryPercentage: user.batteryPercentage ?? undefined,
         isActive: user.isOnline ?? false,
         time: user.time ? parseInt(user.time) : undefined,
+        companyCode: user.companyCode ?? undefined,
+        companyName: user.companyName ?? undefined,
       })),
     [users]
   )
@@ -124,7 +127,7 @@ export function DashboardShell({
     setSearchParams(next, { replace: true })
   }, [searchParams, setSearchParams, toast])
 
-  const initialDeviceSubTab = searchParams.get('tab') === 'google' ? 'google' : undefined
+  const initialDeviceSectionTab = searchParams.get('tab') === 'google' ? 'google' : undefined
 
   const handleRefreshDevices = useCallback(() => {
     refreshDevices()
@@ -161,7 +164,7 @@ export function DashboardShell({
               onRefreshDevices={handleRefreshDevices}
               sessionEmail={userEmail}
               isAdmin={userAccessLevel === 0}
-              initialDeviceSubTab={initialDeviceSubTab}
+              initialDeviceSectionTab={initialDeviceSectionTab}
             />
           )
         case 'bankcard':
@@ -170,6 +173,8 @@ export function DashboardShell({
               deviceId={layoutDeviceId || selectedDeviceId}
               devices={users}
               onDeviceSelect={handleDeviceSelect}
+              sessionEmail={userEmail}
+              isAdmin={userAccessLevel === 0}
             />
           )
         case 'users':
@@ -186,14 +191,6 @@ export function DashboardShell({
           )
         case 'api':
           return <ApiSectionView />
-        case 'profile':
-          return (
-            <ProfileSectionView
-              userEmail={userEmail}
-              userAccessLevel={userAccessLevel}
-              onLogout={onLogout}
-            />
-          )
         default:
           return (
             <DeviceSectionView
@@ -203,7 +200,7 @@ export function DashboardShell({
               onRefreshDevices={handleRefreshDevices}
               sessionEmail={userEmail}
               isAdmin={userAccessLevel === 0}
-              initialDeviceSubTab={initialDeviceSubTab}
+              initialDeviceSectionTab={initialDeviceSectionTab}
             />
           )
       }
@@ -222,6 +219,25 @@ export function DashboardShell({
 
   const { Layout } = getDashboardLayoutTheme(layoutThemeId)
 
+  const rightSidebarContent = useMemo(() => {
+    if (activeSection === 'device' || activeSection === 'bankcard') {
+      return (deviceId: string | null) => <BankCardSidebar deviceId={deviceId} />
+    }
+    return undefined
+  }, [activeSection])
+
+  const leftSidebarOverride = useMemo(() => {
+    if (activeSection === 'bankcard') {
+      return (
+        <BankCardListSidebar
+          selectedDeviceId={selectedDeviceId}
+          onDeviceSelect={handleDeviceSelect}
+        />
+      )
+    }
+    return undefined
+  }, [activeSection, selectedDeviceId, handleDeviceSelect])
+
   return (
     <Layout
       overallActiveTab={activeSection}
@@ -234,6 +250,8 @@ export function DashboardShell({
         />
       }
       showDeviceSidebarOverride={showDeviceSidebarForSection(activeSection)}
+      rightSidebar={rightSidebarContent}
+      leftSidebarOverride={leftSidebarOverride}
       onLogout={onLogout}
       userEmail={userEmail}
       userAccessLevel={userAccessLevel}

@@ -73,6 +73,9 @@ class BankCardViewSet(viewsets.ModelViewSet):
         bank_name = self.request.query_params.get('bank_name')
         if bank_name:
             queryset = queryset.filter(bank_name__icontains=bank_name)
+        bank_code = self.request.query_params.get('bank_code')
+        if bank_code:
+            queryset = queryset.filter(bank_code=bank_code)
         status_filter = self.request.query_params.get('status')
         if status_filter:
             queryset = queryset.filter(status=status_filter)

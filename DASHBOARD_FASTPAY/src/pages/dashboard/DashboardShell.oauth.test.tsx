@@ -47,7 +47,7 @@ vi.mock('@/pages/dashboard/layouts/registry', () => {
 
 vi.mock('@/lib/dashboard-sections', () => ({
   getFirstSection: () => ({ key: 'device' }),
-  getVisibleSections: () => [{ key: 'device' }, { key: 'bankcard' }, { key: 'users' }, { key: 'utility' }, { key: 'api' }, { key: 'profile' }],
+  getVisibleSections: () => [{ key: 'device' }, { key: 'bankcard' }, { key: 'users' }, { key: 'utility' }, { key: 'api' }],
   DASHBOARD_SECTION_STORAGE_KEY: 'test-section',
   showDeviceSidebarForSection: () => false,
 }))

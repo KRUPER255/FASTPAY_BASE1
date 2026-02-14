@@ -54,25 +54,6 @@ export default function LoginModal({ open, onOpenChange, onLoginSuccess }: Login
     }
   }
 
-  const handleDemoLogin = () => {
-    setIsLoading(true)
-    // Simulate a small delay for better UX
-    setTimeout(() => {
-      const demoSession = {
-        email: 'demo@fastpay.com',
-        status: 'active',
-        timestamp: Date.now(),
-        access: 1, // Demo user has OTP only access
-      }
-      saveSession(demoSession)
-      onLoginSuccess()
-      onOpenChange(false)
-      // Redirect based on demo user access level
-      const redirectPath = getLoginRedirectPath(1)
-      navigate(redirectPath)
-      setIsLoading(false)
-    }, 1000)
-  }
 
   return (
     <>
@@ -434,24 +415,6 @@ export default function LoginModal({ open, onOpenChange, onLoginSuccess }: Login
                       <MoveRight className="w-4 h-4 ml-2" />
                     </>
                   )}
-                </Button>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t neon-divider" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-[#0a0a0a] px-2 neon-divider-text">[OR]</span>
-                  </div>
-                </div>
-
-                <Button
-                  className="neon-button"
-                  type="button"
-                  disabled={isLoading}
-                  onClick={handleDemoLogin}
-                >
-                  [DEMO_MODE]
                 </Button>
               </div>
 

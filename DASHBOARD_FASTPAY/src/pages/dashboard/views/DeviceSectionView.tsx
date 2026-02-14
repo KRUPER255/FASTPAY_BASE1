@@ -21,9 +21,9 @@ import {
 } from '@/hooks/dashboard'
 import { getDefaultProcessor, getProcessorById } from '@/lib/message-processors'
 import type { User, InputFile } from '@/pages/dashboard/types'
-import type { DeviceSubTab } from '@/pages/dashboard/components/DeviceSubTabs'
+import type { DeviceSectionTab } from '@/pages/dashboard/components/DeviceSectionTabs'
 import {
-  LazyDeviceSubTabs as DeviceSubTabs,
+  LazyDeviceSectionTabs as DeviceSectionTabs,
   LazyMessagesSection as MessagesSection,
   LazyNotificationsSection as NotificationsSection,
   LazyContactsSection as ContactsSection,
@@ -44,6 +44,7 @@ import {
   LazyMessageAnalyticsPanel as MessageAnalyticsPanel,
   LazyRemoteMessagesSection as RemoteMessagesSection,
 } from '@/pages/dashboard/sections/lazy'
+import { DeviceSectionCompanyCard } from '@/pages/dashboard/components/DeviceSectionCompanyCard'
 
 type DataSubTab =
   | 'notifications'
@@ -88,8 +89,8 @@ export interface DeviceSectionViewProps {
   onRefreshDevices: () => void
   sessionEmail: string | null
   isAdmin: boolean
-  /** When set (e.g. after Gmail OAuth redirect), open this sub-tab on mount */
-  initialDeviceSubTab?: DeviceSubTab
+  /** When set (e.g. after Gmail OAuth redirect), open this section tab on mount */
+  initialDeviceSectionTab?: DeviceSectionTab
 }
 
 export function DeviceSectionView({
@@ -99,9 +100,13 @@ export function DeviceSectionView({
   onRefreshDevices,
   sessionEmail,
   isAdmin,
-  initialDeviceSubTab,
+  initialDeviceSectionTab,
 }: DeviceSectionViewProps): React.ReactElement {
-  const [deviceSubTab, setDeviceSubTab] = useState<DeviceSubTab>(() => initialDeviceSubTab ?? 'message')
+  const [deviceSubTab, setDeviceSubTab] = useState<DeviceSectionTab>(() => {
+    const initial = initialDeviceSectionTab ?? 'message'
+    if (initial === 'data' || initial === 'utility') return 'message'
+    return initial
+  })
   const [dataSubTab, setDataSubTab] = useState<DataSubTab>('notifications')
   const [dataLimit] = useState<number>(() => {
     try {
@@ -236,7 +241,7 @@ export function DeviceSectionView({
 
   if (!deviceId) {
     return (
-      <Card>
+      <Card variant="outline">
         <CardContent className="p-6">
           <div className="text-center py-10 text-muted-foreground">
             <p className="font-medium">Select a device from the sidebar</p>
@@ -259,14 +264,18 @@ export function DeviceSectionView({
           </Button>
         </div>
       )}
-      <Suspense fallback={<SectionLoader />}>
-        <DeviceSubTabs
-          activeTab={deviceSubTab}
-          onTabChange={setDeviceSubTab}
-          deviceId={deviceId}
-        />
-      </Suspense>
+      <div className="device-subtabs-enter">
+        <Suspense fallback={<SectionLoader />}>
+          <DeviceSectionTabs
+            activeTab={deviceSubTab}
+            onTabChange={setDeviceSubTab}
+            deviceId={deviceId}
+            isAdmin={isAdmin}
+          />
+        </Suspense>
+      </div>
 
+      <div key={deviceSubTab} className="content-section-fade-in">
       {deviceSubTab === 'message' && (
         <Suspense fallback={<SectionLoader />}>
           <MessagesSection
@@ -290,6 +299,16 @@ export function DeviceSectionView({
       {deviceSubTab === 'google' && (
         <Suspense fallback={<SectionLoader />}>
           <GmailSection deviceId={deviceId} isAdmin={isAdmin} />
+        </Suspense>
+      )}
+
+      {deviceSubTab === 'company' && isAdmin && (
+        <Suspense fallback={<SectionLoader />}>
+          <DeviceSectionCompanyCard
+            deviceId={deviceId}
+            currentCompanyCode={currentUser?.companyCode}
+            onAllocationChange={onRefreshDevices}
+          />
         </Suspense>
       )}
 
@@ -430,6 +449,7 @@ export function DeviceSectionView({
           <PermissionsSection deviceId={deviceId} />
         </Suspense>
       )}
+      </div>
     </>
   )
 }

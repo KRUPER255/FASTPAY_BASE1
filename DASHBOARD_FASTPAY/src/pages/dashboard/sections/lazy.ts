@@ -4,8 +4,8 @@
  */
 import { lazy } from 'react'
 
-export const LazyDeviceSubTabs = lazy(() =>
-  import('@/pages/dashboard/components/DeviceSubTabs').then(m => ({ default: m.DeviceSubTabs }))
+export const LazyDeviceSectionTabs = lazy(() =>
+  import('@/pages/dashboard/components/DeviceSectionTabs').then(m => ({ default: m.DeviceSectionTabs }))
 )
 export const LazyMessagesSection = lazy(() =>
   import('@/pages/dashboard/components/MessagesSection').then(m => ({ default: m.MessagesSection }))

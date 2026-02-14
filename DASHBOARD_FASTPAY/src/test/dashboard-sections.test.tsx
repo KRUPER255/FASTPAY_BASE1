@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { vi } from 'vitest'
-import { DevicesSection } from '@/pages/dashboard/components/DevicesSection'
+import { DeviceListSection } from '@/pages/dashboard/components/DeviceListSection'
 import { UtilitiesSection } from '@/pages/dashboard/components/UtilitiesSection'
 
 vi.mock('@/pages/dashboard/components/BankCardsList', () => ({
@@ -35,8 +35,8 @@ afterEach(() => {
 })
 
 describe('Dashboard sections', () => {
-  it('renders DevicesSection header and tabs', () => {
-    render(<DevicesSection onDeviceSelect={vi.fn()} />)
+  it('renders DeviceListSection header and tabs', () => {
+    render(<DeviceListSection onDeviceSelect={vi.fn()} />)
     expect(screen.getByText('Devices & Bank Cards')).toBeInTheDocument()
     expect(screen.getByText('Bank Cards')).toBeInTheDocument()
     expect(screen.getByText('Devices')).toBeInTheDocument()

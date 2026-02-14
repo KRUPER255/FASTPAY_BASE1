@@ -27,6 +27,7 @@ from api.models import (
     Contact,
     DashUser,
     BankCard,
+    Company,
 )
 from api.pagination import SkipLimitPagination
 from api.serializers import (
@@ -42,9 +43,23 @@ from api.serializers import (
     ContactSimpleSerializer,
     BankCardSerializer,
     BankCardCreateSerializer,
+    CompanySerializer,
 )
 from api.telegram_service import send_telegram_alert
 from api.views.core import _update_device_sync_fields, _log_sync_result
+
+
+class CompanyViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for Company read operations
+    Returns list of all active companies
+    """
+    queryset = Company.objects.filter(is_active=True)
+    serializer_class = CompanySerializer
+    lookup_field = 'code'
+    
+    def get_queryset(self):
+        return Company.objects.filter(is_active=True).order_by('code')
 
 
 class DeviceViewSet(viewsets.ModelViewSet):
@@ -69,15 +84,37 @@ class DeviceViewSet(viewsets.ModelViewSet):
         return DeviceSerializer
 
     def get_queryset(self):
-        queryset = Device.objects.select_related('bank_card').prefetch_related('assigned_to')
+        queryset = Device.objects.select_related('bank_card', 'company').prefetch_related('assigned_to')
 
+        # Filter by user's company (company-based device allocation)
         user_email = self.request.query_params.get('user_email')
         if user_email:
             try:
-                user = DashUser.objects.get(email=user_email)
-                queryset = queryset.filter(assigned_to=user)
+                user = DashUser.objects.select_related('company').get(email=user_email)
+                # Admins (access_level=0) can see all devices, others see only their company's devices
+                if user.access_level == 0:
+                    # Admin can see all devices, but can filter by company_code if provided
+                    company_code = self.request.query_params.get('company_code')
+                    if company_code:
+                        try:
+                            from api.models import Company
+                            company = Company.objects.get(code=company_code.upper(), is_active=True)
+                            queryset = queryset.filter(company=company)
+                        except Company.DoesNotExist:
+                            queryset = queryset.none()
+                    # Otherwise, admin sees all devices
+                else:
+                    # Non-admin users see only devices from their company
+                    if user.company:
+                        queryset = queryset.filter(company=user.company)
+                    else:
+                        # User has no company, return empty queryset
+                        queryset = queryset.none()
             except DashUser.DoesNotExist:
                 queryset = queryset.none()
+        else:
+            # No user_email provided, return empty queryset for security
+            queryset = queryset.none()
 
         code = self.request.query_params.get('code')
         if code:
@@ -512,31 +549,21 @@ class NotificationViewSet(viewsets.ModelViewSet):
                     errors.append({'index': idx, 'error': 'device_id or device is required', 'data': notif_data})
                     continue
 
-                notifications_to_create.append(Notification(
+                notif, was_created = Notification.objects.update_or_create(
                     device=device,
-                    package_name=notif_data.get('package_name', ''),
-                    title=notif_data.get('title', ''),
-                    text=notif_data.get('text', ''),
                     timestamp=notif_data.get('timestamp', 0),
-                    extra=notif_data.get('extra', {}),
-                ))
+                    defaults={
+                        'package_name': notif_data.get('package_name', ''),
+                        'title': notif_data.get('title', ''),
+                        'text': notif_data.get('text', ''),
+                        'extra': notif_data.get('extra', {}),
+                    },
+                )
+                created.append(NotificationSerializer(notif).data)
             except Exception as e:
                 errors.append({'index': idx, 'error': str(e), 'data': notif_data})
 
-        created_count = 0
-        if notifications_to_create:
-            try:
-                created_notifications = Notification.objects.bulk_create(notifications_to_create, ignore_conflicts=True)
-                created = [NotificationSerializer(n).data for n in created_notifications if hasattr(n, 'id') and n.id]
-                created_count = len(created_notifications)
-            except Exception:
-                for notif_obj in notifications_to_create:
-                    try:
-                        notif_obj.save()
-                        created.append(NotificationSerializer(notif_obj).data)
-                        created_count += 1
-                    except Exception:
-                        pass
+        created_count = len(created)
 
         sync_device_ids = {n.get('device_id') for n in notifications_data if n.get('device_id')}
         sync_status_value = 'synced' if created_count and not errors else 'out_of_sync'
@@ -854,4 +881,5 @@ __all__ = [
     'NotificationViewSet',
     'ContactViewSet',
     'FileSystemViewSet',
+    'CompanyViewSet',
 ]

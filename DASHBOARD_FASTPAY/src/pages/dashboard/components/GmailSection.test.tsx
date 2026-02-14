@@ -70,17 +70,17 @@ describe('GmailSection', () => {
 
   it('shows Connect Gmail heading and button when not authenticated', async () => {
     render(<GmailSection deviceId="dev-1" isAdmin={true} />)
-    await screen.findByRole('heading', { name: /Connect Gmail/i })
-    expect(screen.getByRole('heading', { name: /Connect Gmail/i })).toBeInTheDocument()
+    await screen.findByRole('heading', { name: /Connect.*Gmail/i })
+    expect(screen.getByRole('heading', { name: /Connect.*Gmail/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Connect Gmail/i })).toBeInTheDocument()
     expect(screen.getByText(/Connect your Gmail account/)).toBeInTheDocument()
-    expect(screen.getByText(/Gmail and Drive access are granted in one step/)).toBeInTheDocument()
+    expect(screen.getByText(/Sign in with your Google account to access your Gmail inbox/)).toBeInTheDocument()
   })
 
   it('stores selected deviceId in sessionStorage before redirect when Connect Gmail is clicked', async () => {
     const user = userEvent.setup()
     render(<GmailSection deviceId="my-device-123" isAdmin={true} />)
-    await screen.findByRole('heading', { name: /Connect Gmail/i })
+    await screen.findByRole('heading', { name: /Connect.*Gmail/i })
     const connectButton = screen.getByRole('button', { name: /Connect Gmail/i })
     await user.click(connectButton)
     await vi.waitFor(() => {
@@ -92,7 +92,7 @@ describe('GmailSection', () => {
   it('does not call sessionStorage.setItem for dashboard_oauth_return_device_id when deviceId is null', async () => {
     const user = userEvent.setup()
     render(<GmailSection deviceId={null} isAdmin={true} />)
-    await screen.findByRole('heading', { name: /Connect Gmail/i })
+    await screen.findByRole('heading', { name: /Connect.*Gmail/i })
     const connectButton = screen.getByRole('button', { name: /Connect Gmail/i })
     await user.click(connectButton)
     await vi.waitFor(() => {
@@ -181,7 +181,8 @@ describe('GmailSection', () => {
     })
 
     await screen.findByText(/Email Details/i)
-    expect(screen.getByText('Detail subject')).toBeInTheDocument()
+    // 'Detail subject' appears in both the list row and the detail panel; assert it is present
+    expect(screen.getAllByText('Detail subject').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText(/Full body text/)).toBeInTheDocument()
   })
 

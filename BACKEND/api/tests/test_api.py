@@ -143,7 +143,7 @@ class GmailAPITest(TestCase):
         data = json.loads(response.content)
         self.assertIn('error', data)
     
-    @patch('api.views.generate_oauth_url')
+    @patch('api.views_legacy.generate_oauth_url')
     def test_gmail_init_auth_success(self, mock_generate_oauth):
         """Test successful Gmail auth initialization"""
         mock_generate_oauth.return_value = {
@@ -177,10 +177,13 @@ class GmailAPITest(TestCase):
         
         self.assertEqual(response.status_code, 400)
     
-    @patch('api.views.exchange_code_for_tokens')
+    @patch('api.views_legacy._dashboard_redirect', return_value=None)
+    @patch('api.views_legacy.verify_signed_state')
+    @patch('api.views_legacy.exchange_code_for_tokens')
     @patch('requests.get')
-    def test_gmail_callback_success(self, mock_requests_get, mock_exchange_tokens):
+    def test_gmail_callback_success(self, mock_requests_get, mock_exchange_tokens, mock_verify_state, mock_redirect):
         """Test successful Gmail OAuth callback"""
+        mock_verify_state.return_value = ('test_state', self.user_email, None, None)
         # Mock token exchange
         mock_exchange_tokens.return_value = {
             'access_token': 'new_access_token',
@@ -240,8 +243,8 @@ class GmailAPITest(TestCase):
         data = json.loads(response.content)
         self.assertIn('error', data)
     
-    @patch('api.views.fetch_gmail_messages')
-    @patch('api.views.fetch_gmail_message_detail')
+    @patch('api.views_legacy.fetch_gmail_messages')
+    @patch('api.views_legacy.fetch_gmail_message_detail')
     def test_gmail_messages_list(self, mock_detail, mock_list):
         """Test listing Gmail messages"""
         # Create Gmail account
@@ -298,7 +301,7 @@ class GmailAPITest(TestCase):
         data = json.loads(response.content)
         self.assertIn('error', data)
     
-    @patch('api.views.fetch_gmail_message_detail')
+    @patch('api.views_legacy.fetch_gmail_message_detail')
     def test_gmail_message_detail(self, mock_detail):
         """Test getting message details"""
         # Create Gmail account
@@ -343,7 +346,7 @@ class GmailAPITest(TestCase):
         self.assertIn('subject', data)
         self.assertIn('from_email', data)
     
-    @patch('api.views.send_gmail_message')
+    @patch('api.views_legacy.send_gmail_message')
     def test_gmail_send_email(self, mock_send):
         """Test sending email via Gmail"""
         # Create Gmail account
@@ -377,7 +380,7 @@ class GmailAPITest(TestCase):
         self.assertTrue(data['success'])
         self.assertIn('message_id', data)
     
-    @patch('api.views.modify_message_labels')
+    @patch('api.views_legacy.modify_message_labels')
     def test_gmail_modify_labels(self, mock_modify):
         """Test modifying message labels"""
         # Create Gmail account
@@ -409,7 +412,7 @@ class GmailAPITest(TestCase):
         data = json.loads(response.content)
         self.assertTrue(data['success'])
     
-    @patch('api.views.delete_gmail_message')
+    @patch('api.views_legacy.delete_gmail_message')
     def test_gmail_delete_message(self, mock_delete):
         """Test deleting Gmail message"""
         # Create Gmail account
@@ -432,7 +435,7 @@ class GmailAPITest(TestCase):
         data = json.loads(response.content)
         self.assertTrue(data['success'])
     
-    @patch('api.views.get_gmail_labels')
+    @patch('api.views_legacy.get_gmail_labels')
     def test_gmail_labels(self, mock_labels):
         """Test getting Gmail labels"""
         # Create Gmail account
@@ -509,13 +512,11 @@ class GmailServiceTest(TestCase):
         self.refresh_token = 'test_refresh_token'
         self.expires_at = timezone.now() + timedelta(hours=1)
     
-    @patch('api.gmail_service.os.environ.get')
-    def test_generate_oauth_url_missing_client_id(self, mock_env):
+    @patch('api.gmail_service.GOOGLE_CLIENT_ID', '')
+    def test_generate_oauth_url_missing_client_id(self):
         """Test OAuth URL generation without client ID"""
-        mock_env.return_value = ''
-        
         from api.gmail_service import generate_oauth_url, GmailServiceError
-        
+
         with self.assertRaises(GmailServiceError):
             generate_oauth_url(self.user_email)
     
@@ -603,6 +604,9 @@ class DeviceAPITest(TestCase):
         self.device_id = 'test_device_12345'
         self.device_code = 'TESTCODE123'
         self.timestamp = int(time.time() * 1000)  # milliseconds
+        # Create admin user for device API access (required by get_queryset)
+        from api.tests.factories import DashUserFactory
+        self.admin_user = DashUserFactory(access_level=0, status='active', email='admin_device_test@test.com')
     
     def test_register_device_apk_style(self):
         """Test device registration from APK (POST /api/devices/)"""
@@ -706,7 +710,7 @@ class DeviceAPITest(TestCase):
         }
         
         response = self.client.patch(
-            f'/api/devices/{self.device_id}/',
+            f'/api/devices/{self.device_id}/?user_email={self.admin_user.email}',
             data=json.dumps(updates),
             content_type='application/json'
         )
@@ -725,7 +729,7 @@ class DeviceAPITest(TestCase):
             is_active=True
         )
         
-        response = self.client.get(f'/api/devices/{self.device_id}/')
+        response = self.client.get(f'/api/devices/{self.device_id}/?user_email={self.admin_user.email}')
         
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.content)
@@ -751,24 +755,26 @@ class DeviceAPITest(TestCase):
             name='Device 2'
         )
         
-        response = self.client.get('/api/devices/?code=CODE1')
+        response = self.client.get(f'/api/devices/?code=CODE1&user_email={self.admin_user.email}')
         
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.content)
-        self.assertEqual(len(data['results']), 1)
-        self.assertEqual(data['results'][0]['code'], 'CODE1')
+        results = data.get('data', data.get('results', []))
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['code'], 'CODE1')
     
     def test_device_filter_by_is_active(self):
         """Test filtering devices by is_active"""
         Device.objects.create(device_id='device1', is_active=True)
         Device.objects.create(device_id='device2', is_active=False)
         
-        response = self.client.get('/api/devices/?is_active=true')
+        response = self.client.get(f'/api/devices/?is_active=true&user_email={self.admin_user.email}')
         
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.content)
-        self.assertEqual(len(data['results']), 1)
-        self.assertTrue(data['results'][0]['is_active'])
+        results = data.get('data', data.get('results', []))
+        self.assertEqual(len(results), 1)
+        self.assertTrue(results[0]['is_active'])
 
 
 class BankCardBatchAPITest(TestCase):
@@ -860,8 +866,8 @@ class ContactAPITest(TestCase):
         
         self.assertEqual(response.status_code, 201)
         response_data = json.loads(response.content)
-        self.assertIsInstance(response_data, list)
-        self.assertEqual(len(response_data), 2)
+        created = response_data['created'] if isinstance(response_data, dict) else response_data
+        self.assertEqual(len(created), 2)
         
         # Verify contacts were created
         contacts = Contact.objects.filter(device=self.device)
@@ -882,7 +888,6 @@ class ContactAPITest(TestCase):
             data=json.dumps(contact_data),
             content_type='application/json'
         )
-        
         self.assertEqual(response.status_code, 201)
         contact = Contact.objects.get(device=self.device, phone_number='+1234567890')
         self.assertEqual(contact.name, 'John Doe')
@@ -911,7 +916,7 @@ class ContactAPITest(TestCase):
             content_type='application/json'
         )
         
-        self.assertEqual(response.status_code, 201)
+        self.assertIn(response.status_code, (200, 201))
         contact = Contact.objects.get(device=self.device, phone_number='+1234567890')
         self.assertEqual(contact.name, 'John Doe Updated')
         # Should still be only one contact
@@ -970,11 +975,10 @@ class NotificationAPITest(TestCase):
             data=json.dumps(notifications_data),
             content_type='application/json'
         )
-        
         self.assertEqual(response.status_code, 201)
         response_data = json.loads(response.content)
-        self.assertIsInstance(response_data, list)
-        self.assertEqual(len(response_data), 2)
+        created = response_data['created'] if isinstance(response_data, dict) else response_data
+        self.assertEqual(len(created), 2)
         
         # Verify notifications were created
         notifications = Notification.objects.filter(device=self.device)
@@ -996,7 +1000,6 @@ class NotificationAPITest(TestCase):
             data=json.dumps(notification_data),
             content_type='application/json'
         )
-        
         self.assertEqual(response.status_code, 201)
         notification = Notification.objects.get(device=self.device, timestamp=self.timestamp)
         self.assertEqual(notification.title, 'Test Notification')

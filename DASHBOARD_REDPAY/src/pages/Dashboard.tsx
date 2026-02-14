@@ -429,11 +429,13 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
 
     const params = new URLSearchParams(location.search)
-    if (params.get('tab') !== activeTab) {
+    const currentTab = params.get('tab')
+    // Only update URL if tab actually changed (prevents navigation loops)
+    if (currentTab !== activeTab) {
       params.set('tab', activeTab)
       navigate({ search: params.toString() }, { replace: true })
     }
-  }, [activeTab, location.search, navigate])
+  }, [activeTab, navigate]) // Removed location.search to prevent navigation loops
   const [viewMode, setViewMode] = useState<'tabs' | 'widgets'>(() => {
     const saved = localStorage.getItem('dashboard-viewMode')
     return saved === 'widgets' || saved === 'tabs' ? saved : 'tabs'

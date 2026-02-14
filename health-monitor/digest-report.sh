@@ -18,7 +18,7 @@ if [[ -f "$ENV_FILE" ]]; then
 fi
 
 # URLs to check
-DEFAULT_URLS="https://fastpaygaming.com/ https://fastpaygaming.com/health/ https://api.fastpaygaming.com/api/ https://staging.fastpaygaming.com/ https://api-staging.fastpaygaming.com/api/ https://owner.fastpaygaming.com/"
+DEFAULT_URLS="https://fastpaygaming.com/ https://fastpaygaming.com/health/ https://api.fastpaygaming.com/api/ https://staging.fastpaygaming.com/ https://sapi.fastpaygaming.com/api/ https://owner.fastpaygaming.com/"
 HEALTH_URLS_STR="${HEALTH_URLS:-$DEFAULT_URLS}"
 read -ra HEALTH_URLS <<< "$HEALTH_URLS_STR"
 
@@ -98,8 +98,9 @@ MEMORY=$(free -h 2>/dev/null | awk '/^Mem:/ {print "Mem: "$3" used / "$2" total"
 N=$((DIGEST_MAX_LOG_LINES / 2))
 RECENT=""
 
-# Docker backend
-BACKEND_DIR="/opt/FASTPAY/BACKEND"
+# Docker backend (production). Override with PROD_BASE (default /var/www/fastpay).
+PROD_BASE="${PROD_BASE:-/var/www/fastpay}"
+BACKEND_DIR="${PROD_BASE}/BACKEND"
 if [[ -d "$BACKEND_DIR" ]] && command -v docker &>/dev/null; then
     backend_logs=$(cd "$BACKEND_DIR" && docker compose -p backend logs --since 15m 2>&1 | tail -n "$N" || true)
     [[ -n "$backend_logs" ]] && RECENT="${RECENT}Docker (backend):
@@ -108,8 +109,9 @@ ${backend_logs}
 "
 fi
 
-# Docker staging
-STAGING_DIR="/root/Desktop/FASTPAY_BASE/BACKEND"
+# Docker staging. Override with STAGING_BASE (default: parent of health-monitor, or /desktop/fastpay).
+STAGING_BASE="${STAGING_BASE:-$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)}"
+STAGING_DIR="${STAGING_BASE}/BACKEND"
 if [[ -d "$STAGING_DIR" ]] && command -v docker &>/dev/null; then
     staging_logs=$(cd "$STAGING_DIR" && docker compose -f docker-compose.staging.yml -p fastpay-staging logs --since 15m 2>&1 | tail -n "$N" || true)
     [[ -n "$staging_logs" ]] && RECENT="${RECENT}Docker (staging):

@@ -341,37 +341,44 @@ class Command(BaseCommand):
 
     def _initialize_firebase(self) -> None:
         """Initialize Firebase Admin SDK."""
+        import json
         import os
-        
+
         # Check if already initialized
         try:
             firebase_admin.get_app()
             return
         except ValueError:
             pass
-        
-        # Get Firebase credentials from environment
-        firebase_credential_path = os.environ.get('FIREBASE_CREDENTIALS_PATH')
+
         firebase_database_url = os.environ.get('FIREBASE_DATABASE_URL')
-        
         if not firebase_database_url:
             raise ValueError("FIREBASE_DATABASE_URL environment variable is required")
-        
-        if firebase_credential_path and os.path.exists(firebase_credential_path):
-            cred = credentials.Certificate(firebase_credential_path)
-            firebase_admin.initialize_app(cred, {
-                'databaseURL': firebase_database_url
-            })
+
+        cred = None
+        json_str = os.environ.get('FIREBASE_CREDENTIALS_JSON')
+        if json_str:
+            try:
+                cred = credentials.Certificate(json.loads(json_str))
+            except Exception as e:
+                raise ValueError(f"Invalid FIREBASE_CREDENTIALS_JSON: {e}") from e
+        path = os.environ.get('FIREBASE_CREDENTIALS_PATH')
+        if cred is None and path and os.path.exists(path):
+            try:
+                cred = credentials.Certificate(path)
+            except PermissionError:
+                with open(path) as f:
+                    cred = credentials.Certificate(json.load(f))
+        if cred is not None:
+            firebase_admin.initialize_app(cred, {'databaseURL': firebase_database_url})
         else:
             try:
-                firebase_admin.initialize_app(options={
-                    'databaseURL': firebase_database_url
-                })
+                firebase_admin.initialize_app(options={'databaseURL': firebase_database_url})
             except Exception as e:
                 raise ValueError(
-                    f"Firebase initialization failed. Provide FIREBASE_CREDENTIALS_PATH "
-                    f"or use default credentials. Error: {e}"
-                )
+                    f"Firebase initialization failed. Set FIREBASE_CREDENTIALS_PATH, "
+                    f"FIREBASE_CREDENTIALS_JSON, or use default credentials. Error: {e}"
+                ) from e
 
     def _discover_devices(self, is_prod: bool) -> List[str]:
         """

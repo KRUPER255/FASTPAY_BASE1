@@ -35,8 +35,13 @@ DRIVE_SCOPES = [
     'https://www.googleapis.com/auth/drive',
 ]
 
-# Combined scopes requested at OAuth so one connection works for both Gmail and Drive
-OAUTH_SCOPES = GMAIL_SCOPES + DRIVE_SCOPES
+# Sheets scopes for Google Sheets API (read/write spreadsheets)
+SHEETS_SCOPES = [
+    'https://www.googleapis.com/auth/spreadsheets',
+]
+
+# Combined scopes requested at OAuth so one connection works for Gmail, Drive, and Sheets
+OAUTH_SCOPES = GMAIL_SCOPES + DRIVE_SCOPES + SHEETS_SCOPES
 
 
 class GmailServiceError(Exception):

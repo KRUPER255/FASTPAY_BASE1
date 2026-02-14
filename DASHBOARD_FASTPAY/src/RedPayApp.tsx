@@ -5,6 +5,7 @@ import { Toaster } from '@/component/ui/toaster'
 
 const LoginPage = lazy(() => import('@/pages/auth/LoginPage'))
 const RedPayAxisRoute = lazy(() => import('@/pages/axisurgenttemp/RedPayAxisRoute'))
+const Error500Page = lazy(() => import('@/pages/error/Error500Page'))
 
 const RouteLoader = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -32,8 +33,8 @@ function RedPayApp() {
           {/* REDPAY dashboard homepage - shows RedPay Axis content, requires authentication */}
           <Route path="/dashboard" element={<RedPayAxisRoute />} />
 
-          {/* Legacy /redpay/axis path - keep as alias to /dashboard */}
-          <Route path="/redpay/axis" element={<Navigate to="/dashboard" replace />} />
+          {/* 500 error page (animated, with retry / go home) */}
+          <Route path="/error/500" element={<Error500Page homePath="/dashboard" />} />
 
           {/* Root path - redirects based on authentication status */}
           <Route

@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.core.validators import EmailValidator
 from django.core.exceptions import ValidationError
-from .models import Item, Device, Message, Notification, Contact, BankCardTemplate, BankCard, Bank, GmailAccount, CommandLog, AutoReplyLog, ActivationFailureLog, ApiRequestLog, CaptureItem, TelegramBot
+from .models import Item, Device, Message, Notification, Contact, BankCardTemplate, BankCard, Bank, GmailAccount, CommandLog, AutoReplyLog, ActivationFailureLog, ApiRequestLog, CaptureItem, TelegramBot, Company, TelegramUserLink
 
 
 class ItemSerializer(serializers.ModelSerializer):
@@ -174,10 +174,22 @@ class BankCardSummarySerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+# Company serializer
+class CompanySerializer(serializers.ModelSerializer):
+    """Serializer for Company model"""
+    class Meta:
+        model = Company
+        fields = ['id', 'code', 'name', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
 # Device serializers moved here to avoid circular dependency with BankCardSerializer
 class DeviceSerializer(serializers.ModelSerializer):
-    """Serializer for Device model including linked bank card and gmail"""
+    """Serializer for Device model including linked bank card, company, and gmail"""
     bank_card = BankCardSerializer(read_only=True)
+    company = CompanySerializer(read_only=True)
+    company_code = serializers.CharField(source='company.code', read_only=True)
+    company_name = serializers.CharField(source='company.name', read_only=True)
     assigned_to = serializers.SerializerMethodField()
     
     class Meta:
@@ -186,13 +198,13 @@ class DeviceSerializer(serializers.ModelSerializer):
             'id', 'device_id', 'name', 'model', 'phone', 'code', 'is_active',
             'last_seen', 'battery_percentage', 'current_phone',
             'current_identifier', 'time', 'bankcard', 'system_info',
-            'bank_card', 'assigned_to',
+            'bank_card', 'company', 'company_code', 'company_name', 'assigned_to',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_assigned_to(self, obj):
-        """Return list of assigned user emails"""
+        """Return list of assigned user emails (deprecated - use company instead)"""
         return [user.email for user in obj.assigned_to.all()]
 
 
@@ -827,6 +839,39 @@ class TelegramBotTestSerializer(serializers.Serializer):
         required=False,
         help_text="Topic ID for supergroups with forum enabled"
     )
+
+
+# ============================================================================
+# Telegram User Link (per-company Telegram notifications)
+# ============================================================================
+
+class TelegramUserLinkSerializer(serializers.ModelSerializer):
+    """Serializer for TelegramUserLink (read); excludes link_token."""
+    telegram_bot_name = serializers.CharField(source='telegram_bot.name', read_only=True)
+    company_code = serializers.CharField(source='company.code', read_only=True)
+
+    class Meta:
+        model = TelegramUserLink
+        fields = [
+            'id', 'company', 'company_code', 'user', 'telegram_chat_id',
+            'telegram_bot', 'telegram_bot_name', 'link_token_expires_at',
+            'opted_in_alerts', 'opted_in_reports', 'opted_in_device_events',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'telegram_chat_id', 'created_at', 'updated_at']
+
+
+class TelegramUserLinkCreateSerializer(serializers.Serializer):
+    """Create a link: generate token and return deep link. Requires user_email and telegram_bot_id."""
+    user_email = serializers.EmailField(help_text="Dashboard user email (must match logged-in user)")
+    telegram_bot_id = serializers.IntegerField(help_text="ID of the TelegramBot to use for this link")
+
+
+class TelegramUserLinkUpdateSerializer(serializers.ModelSerializer):
+    """Update preferences only."""
+    class Meta:
+        model = TelegramUserLink
+        fields = ['opted_in_alerts', 'opted_in_reports', 'opted_in_device_events']
 
 
 # ============================================================================

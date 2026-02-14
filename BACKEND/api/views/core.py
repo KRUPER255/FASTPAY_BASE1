@@ -32,11 +32,11 @@ def _update_device_sync_fields(device_ids, field_name, sync_status_val, error_me
     Device.objects.filter(device_id__in=device_ids).update(**updates)
 
 
-def _log_sync_result(device, sync_type, sync_status_val, created_count=0, errors_count=0, error_message=None):
+def _log_sync_result(device, sync_type, status, created_count=0, errors_count=0, error_message=None):
     """Create sync log entry for a device"""
     FirebaseSyncLog.objects.create(
         sync_type=sync_type,
-        status=sync_status_val,
+        status=status,
         device=device,
         messages_created=created_count if sync_type == "messages" else 0,
         messages_skipped=0,

@@ -9,7 +9,7 @@ interface DashboardRouteProps {
 export default function DashboardRoute({ onLogout }: DashboardRouteProps) {
   try {
     if (!isAuthenticated()) {
-      return <Navigate to="/" replace />
+      return <Navigate to="/login" replace />
     }
 
     const accessLevel = getUserAccess()

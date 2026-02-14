@@ -1,0 +1,26 @@
+---
+description: Subdomain and path convention — staging vs production
+alwaysApply: true
+---
+
+# Staging vs Production
+
+## Path convention
+
+- **Production** — under **`/var/www`** (canonical base: `/var/www/fastpay/`).
+- **Staging** — on **Desktop** (e.g. `/root/Desktop/FASTPAY_BASE` or `/desktop/fastpay`).
+
+Same repo layout (BACKEND/, DASHBOARD_FASTPAY/, DASHBOARD_REDPAY/) in both; only the base path differs.
+
+## Subdomain convention
+
+Subdomains follow a consistent naming pattern:
+
+- **`s` prefix** → **staging** (e.g. `sapi`, `sadmin`, `sredpay`, `scsapay`, `sbropay`, `shypay`, `skypay`)
+- **No `s` prefix** → **production** (e.g. `api`, `admin`, `redpay`, `csapay`, `bropay`, `hypay`, `kypay`)
+
+Use this when configuring DNS, nginx, env vars, or docs so staging and production hostnames and paths are correct.
+
+Examples:
+- `api.<domain>` = production API; `sapi.<domain>` = staging API
+- `admin.<domain>` = production admin; `sadmin.<domain>` = staging admin

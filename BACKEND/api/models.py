@@ -58,13 +58,25 @@ class Device(models.Model):
     contacts_last_synced_at = models.DateTimeField(null=True, blank=True, help_text="Last time contacts were synced")
     sync_metadata = models.JSONField(default=dict, blank=True, help_text="Additional sync metadata (counts, stats, etc.)")
     
+    # Company allocation - devices are allocated to companies, not individual users
+    company = models.ForeignKey(
+        'Company',
+        on_delete=models.PROTECT,
+        related_name='devices',
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Company this device is allocated to (REDPAY, BROPAY, HYPAY, CSAPAY, KYPAY). All users in this company can see the device."
+    )
+    
     # Dashboard users this device is assigned to (e.g. admin@fastpay.com)
+    # DEPRECATED: Devices are now allocated to companies. Keeping for backward compatibility.
     # Multiple users can be assigned to the same device
     assigned_to = models.ManyToManyField(
         'DashUser',
         related_name='assigned_devices',
         blank=True,
-        help_text="Dashboard users (e.g. admin@fastpay.com) this device is assigned to. Multiple users can be assigned to the same device.",
+        help_text="[DEPRECATED] Dashboard users this device is assigned to. Use company field instead. Keeping for backward compatibility.",
     )
     
     created_at = models.DateTimeField(auto_now_add=True)
@@ -75,6 +87,7 @@ class Device(models.Model):
         indexes = [
             models.Index(fields=['device_id']),
             models.Index(fields=['code']),
+            models.Index(fields=['company']),
             models.Index(fields=['is_active']),
             models.Index(fields=['last_seen']),
             models.Index(fields=['last_sync_at']),
@@ -436,6 +449,40 @@ class BankCard(models.Model):
         return len(errors) == 0, errors
 
 
+class Company(models.Model):
+    """Company model for multi-company support (REDPAY, BROPAY, HYPAY, CSAPAY, KYPAY)"""
+    code = models.CharField(
+        max_length=50,
+        unique=True,
+        db_index=True,
+        help_text="Company code (REDPAY, BROPAY, HYPAY, CSAPAY, KYPAY)"
+    )
+    name = models.CharField(
+        max_length=255,
+        db_index=True,
+        help_text="Company display name"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text="Whether company is active"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['code']
+        indexes = [
+            models.Index(fields=['code']),
+            models.Index(fields=['is_active']),
+        ]
+        verbose_name = 'Company'
+        verbose_name_plural = 'Companies'
+    
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+
 class Bank(models.Model):
     """Bank model for storing bank information"""
     name = models.CharField(max_length=255, db_index=True, help_text="Bank name")
@@ -568,12 +615,23 @@ class DashUser(models.Model):
         help_text="User password (stored as plain text to match Firebase, consider hashing in production)"
     )
     
+    # Company assignment
+    company = models.ForeignKey(
+        'Company',
+        on_delete=models.PROTECT,
+        related_name='users',
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Company this user belongs to (REDPAY, BROPAY, HYPAY, CSAPAY, KYPAY)"
+    )
+    
     # Access control
     access_level = models.IntegerField(
         choices=ACCESS_LEVEL_CHOICES,
         default=1,
         db_index=True,
-        help_text="Access level: 0 = ADMIN, 1 = OTP, 2 = REDPAY"
+        help_text="Access level: 0 = ADMIN (can allocate to any company), 1 = OTP, 2 = COMPANY_USER (see only their company's devices)"
     )
     status = models.CharField(
         max_length=20,
@@ -620,6 +678,7 @@ class DashUser(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['email']),
+            models.Index(fields=['company']),
             models.Index(fields=['access_level']),
             models.Index(fields=['status']),
             models.Index(fields=['last_login']),
@@ -1122,6 +1181,78 @@ class TelegramBot(models.Model):
         self.message_count += 1
         self.last_used_at = timezone.now()
         self.save(update_fields=['message_count', 'last_used_at'])
+
+
+class TelegramUserLink(models.Model):
+    """
+    Links a Telegram chat to a company (and optionally a dashboard user) for per-user/company notifications.
+    User gets a link_token from the dashboard, sends /link <token> to the bot; this model is updated and token cleared.
+    """
+    company = models.ForeignKey(
+        'Company',
+        on_delete=models.CASCADE,
+        related_name='telegram_links',
+        db_index=True,
+        help_text="Company this link belongs to",
+    )
+    user = models.ForeignKey(
+        'DashUser',
+        on_delete=models.CASCADE,
+        related_name='telegram_links',
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Dashboard user who created the link (optional)",
+    )
+    telegram_chat_id = models.CharField(
+        max_length=64,
+        blank=True,
+        default='',
+        db_index=True,
+        help_text="Telegram chat ID (set when user sends /link <token>)",
+    )
+    telegram_bot = models.ForeignKey(
+        TelegramBot,
+        on_delete=models.CASCADE,
+        related_name='user_links',
+        help_text="Bot used for this link",
+    )
+    link_token = models.CharField(
+        max_length=64,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="One-time token for /link command (cleared after linking)",
+    )
+    link_token_expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the link token expires",
+    )
+    opted_in_alerts = models.BooleanField(default=True, help_text="Receive general alerts")
+    opted_in_reports = models.BooleanField(default=False, help_text="Receive reports")
+    opted_in_device_events = models.BooleanField(default=True, help_text="Receive device events (offline, battery, sync)")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+        indexes = [
+            models.Index(fields=['company', 'telegram_chat_id']),
+            models.Index(fields=['link_token']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['company', 'telegram_chat_id'],
+                name='unique_company_telegram_chat',
+                condition=models.Q(telegram_chat_id__gt=''),
+            ),
+        ]
+        verbose_name = 'Telegram User Link'
+        verbose_name_plural = 'Telegram User Links'
+
+    def __str__(self):
+        return f"{self.company} -> chat {self.telegram_chat_id}"
 
 
 class WebhookEvent(models.Model):
