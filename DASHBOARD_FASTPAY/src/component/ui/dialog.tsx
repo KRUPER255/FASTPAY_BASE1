@@ -83,9 +83,9 @@ const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
             ? { opacity: 0, x: 24 }
             : { opacity: 0, scale: 0.95, x: '-50%', y: '-50%' }
         }
-        transition={{ duration: 0.2 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
         className={cn(
-          'fixed z-[9999] grid w-full max-w-lg gap-4 border border-border bg-background p-6 shadow-lg duration-200 sm:rounded-lg',
+          'fixed z-[9999] grid w-full max-w-lg gap-4 border border-border/50 bg-card text-card-foreground p-6 shadow-elevation-2 rounded-xl duration-200',
           isEnd
             ? 'right-6 top-1/2 -translate-y-1/2 left-auto'
             : 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',

@@ -31,17 +31,30 @@ export interface DribbbleStyleCardProps {
   delay?: number
   /** Disable hover lift effect. */
   noHover?: boolean
+  /** Card variant style. */
+  variant?: 'default' | 'elevated' | 'glass' | 'soft'
 }
 
 /**
  * Dribbble-style animated card: smooth entrance (fade + slide up + scale),
  * optional staggered children, and hover lift + shadow.
  */
+const variantStyles = {
+  default:
+    'border border-border/60 bg-card text-card-foreground shadow-md shadow-black/5 dark:shadow-black/20 hover:shadow-lg hover:shadow-black/10 dark:hover:shadow-black/30',
+  elevated:
+    'border border-border/30 bg-card text-card-foreground shadow-lg shadow-black/8 dark:shadow-black/30 hover:shadow-xl hover:shadow-black/15 dark:hover:shadow-black/40',
+  glass:
+    'border border-border/30 bg-white/5 text-card-foreground backdrop-blur-xl shadow-md hover:shadow-lg transition-all duration-200',
+  soft: 'border border-border/30 bg-primary/5 text-card-foreground shadow-sm hover:shadow-md',
+}
+
 export function DribbbleStyleCard({
   children,
   className,
   delay = 0,
   noHover = false,
+  variant = 'default',
 }: DribbbleStyleCardProps) {
   return (
     <motion.div
@@ -63,11 +76,8 @@ export function DribbbleStyleCard({
             }
       }
       className={cn(
-        'rounded-2xl border border-border/60 bg-card text-card-foreground',
-        'shadow-lg shadow-black/5 dark:shadow-black/20',
-        'overflow-hidden',
-        !noHover && 'hover:shadow-xl hover:shadow-black/10 dark:hover:shadow-black/30',
-        'transition-shadow duration-200',
+        'rounded-2xl overflow-hidden transition-shadow duration-200',
+        variantStyles[variant],
         className
       )}
     >

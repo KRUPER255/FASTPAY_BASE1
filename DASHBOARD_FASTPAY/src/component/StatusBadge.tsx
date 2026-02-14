@@ -12,52 +12,55 @@ interface StatusBadgeProps {
   className?: string
 }
 
-const statusConfig: Record<StatusType, { color: string; bgColor: string; icon: typeof CheckCircle2; defaultLabel: string }> = {
+const statusConfig: Record<StatusType, { color: string; bgColor: string; icon: typeof CheckCircle2; defaultLabel: string; isPulsing?: boolean }> = {
   online: {
-    color: 'text-green-600 dark:text-green-400',
-    bgColor: 'bg-green-500/10 border-green-500/50',
+    color: 'text-status-success dark:text-status-success-light',
+    bgColor: 'bg-status-success/15 border-status-success/30',
     icon: Wifi,
     defaultLabel: 'Online',
+    isPulsing: true,
   },
   offline: {
-    color: 'text-red-600 dark:text-red-400',
-    bgColor: 'bg-red-500/10 border-red-500/50',
+    color: 'text-status-error dark:text-status-error-light',
+    bgColor: 'bg-status-error/15 border-status-error/30',
     icon: WifiOff,
     defaultLabel: 'Offline',
   },
   warning: {
-    color: 'text-yellow-600 dark:text-yellow-400',
-    bgColor: 'bg-yellow-500/10 border-yellow-500/50',
+    color: 'text-status-warning dark:text-status-warning-light',
+    bgColor: 'bg-status-warning/15 border-status-warning/30',
     icon: AlertCircle,
     defaultLabel: 'Warning',
   },
   error: {
-    color: 'text-red-600 dark:text-red-400',
-    bgColor: 'bg-red-500/10 border-red-500/50',
+    color: 'text-status-error dark:text-status-error-light',
+    bgColor: 'bg-status-error/15 border-status-error/30',
     icon: XCircle,
     defaultLabel: 'Error',
   },
   unknown: {
-    color: 'text-gray-600 dark:text-gray-400',
-    bgColor: 'bg-gray-500/10 border-gray-500/50',
+    color: 'text-muted-foreground',
+    bgColor: 'bg-muted/50 border-muted/50',
     icon: Activity,
     defaultLabel: 'Unknown',
   },
   pending: {
-    color: 'text-orange-600 dark:text-orange-400',
-    bgColor: 'bg-orange-500/10 border-orange-500/50',
+    color: 'text-status-pending dark:text-status-pending-light',
+    bgColor: 'bg-status-pending/15 border-status-pending/30',
     icon: Clock,
     defaultLabel: 'Pending',
+    isPulsing: true,
   },
   active: {
-    color: 'text-green-600 dark:text-green-400',
-    bgColor: 'bg-green-500/10 border-green-500/50',
+    color: 'text-status-success dark:text-status-success-light',
+    bgColor: 'bg-status-success/15 border-status-success/30',
     icon: CheckCircle2,
     defaultLabel: 'Active',
+    isPulsing: true,
   },
   inactive: {
-    color: 'text-gray-600 dark:text-gray-400',
-    bgColor: 'bg-gray-500/10 border-gray-500/50',
+    color: 'text-muted-foreground',
+    bgColor: 'bg-muted/50 border-muted/50',
     icon: XCircle,
     defaultLabel: 'Inactive',
   },
@@ -91,10 +94,11 @@ export function StatusBadge({ status, label, showIcon = true, size = 'md', class
         config.bgColor,
         config.color,
         sizeStyles.badge,
+        config.isPulsing && 'status-pulse',
         className
       )}
     >
-      {showIcon && <Icon className={sizeStyles.icon} />}
+      {showIcon && <Icon className={cn('animate-pulse', sizeStyles.icon)} />}
       <span>{label || config.defaultLabel}</span>
     </Badge>
   )

@@ -12,21 +12,50 @@ interface EmptyStateProps {
     onClick: () => void
   }
   className?: string
+  variant?: 'default' | 'minimal' | 'elevated'
 }
 
-export function EmptyState({ icon: Icon, title, description, action, className }: EmptyStateProps) {
+const variantStyles = {
+  default: 'border-dashed bg-gradient-to-b from-card/50 to-background/50',
+  minimal: 'border-dashed border-border/30 bg-transparent',
+  elevated: 'bg-gradient-to-br from-primary/5 to-accent/5 border-border/50',
+}
+
+export function EmptyState({
+  icon: Icon,
+  title,
+  description,
+  action,
+  className,
+  variant = 'default',
+}: EmptyStateProps) {
   return (
-    <Card className={cn('border-dashed', className)}>
-      <CardContent className="flex flex-col items-center justify-center p-12 text-center">
+    <Card variant="outline" className={cn('scale-in', variantStyles[variant], className)}>
+      <CardContent className="flex flex-col items-center justify-center p-8 sm:p-12 text-center">
         {Icon && (
-          <div className="mb-4 rounded-full bg-muted p-4">
-            <Icon className="h-8 w-8 text-muted-foreground" />
+          <div className={cn(
+            'mb-6 rounded-2xl p-4 transition-transform duration-300 hover:scale-110',
+            variant === 'elevated' ? 'bg-primary/10' : 'bg-muted/50'
+          )}>
+            <Icon className={cn(
+              'h-10 w-10',
+              variant === 'elevated' ? 'text-primary' : 'text-muted-foreground'
+            )} />
           </div>
         )}
-        <h3 className="text-lg font-semibold mb-2">{title}</h3>
-        {description && <p className="text-sm text-muted-foreground mb-4 max-w-sm">{description}</p>}
+        <h3 className="text-xl sm:text-2xl font-bold mb-3 text-foreground">{title}</h3>
+        {description && (
+          <p className="text-sm sm:text-base text-muted-foreground mb-6 max-w-sm leading-relaxed">
+            {description}
+          </p>
+        )}
         {action && (
-          <Button onClick={action.onClick} variant="outline" size="sm">
+          <Button
+            onClick={action.onClick}
+            variant={variant === 'elevated' ? 'default' : 'outline'}
+            size="sm"
+            className="transition-smooth"
+          >
             {action.label}
           </Button>
         )}
